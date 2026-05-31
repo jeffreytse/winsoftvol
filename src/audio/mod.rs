@@ -1,0 +1,97 @@
+mod device;
+mod device_cb;
+mod endpoint_cb;
+mod session_cb;
+pub mod session_mgr;
+
+pub use device::DeviceWatcher;
+use device::get_default_device;
+use endpoint_cb::EndpointVolumeCallback;
+use session_cb::SessionNotificationHandler;
+use session_mgr::set_all_sessions_volume;
+
+use std::sync::{Arc, Mutex};
+use windows::{
+    core::Result,
+    Win32::{
+        Media::Audio::{
+            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
+            IAudioSessionManager2, IAudioSessionNotification, IMMDevice,
+        },
+        System::Com::CLSCTX_ALL,
+    },
+};
+
+pub struct VolumeState {
+    pub volume: f32,
+    pub muted: bool,
+}
+
+pub struct AudioBridge {
+    _device: IMMDevice,
+    endpoint_volume: IAudioEndpointVolume,
+    _endpoint_cb: IAudioEndpointVolumeCallback,
+    session_manager: IAudioSessionManager2,
+    _session_cb: IAudioSessionNotification,
+}
+
+impl AudioBridge {
+    pub fn new() -> Result<Self> {
+        let state = Arc::new(Mutex::new(VolumeState {
+            volume: 1.0,
+            muted: false,
+        }));
+
+        let device = get_default_device()?;
+
+        // Register session notification BEFORE enumerating to avoid missing sessions
+        let session_manager: IAudioSessionManager2 =
+            unsafe { device.Activate(CLSCTX_ALL, None)? };
+        let session_cb: IAudioSessionNotification = SessionNotificationHandler {
+            state: state.clone(),
+        }
+        .into();
+        unsafe { session_manager.RegisterSessionNotification(&session_cb)? };
+
+        // Register endpoint volume callback — translates OS volume changes to sessions
+        let endpoint_volume: IAudioEndpointVolume =
+            unsafe { device.Activate(CLSCTX_ALL, None)? };
+        let endpoint_cb: IAudioEndpointVolumeCallback = EndpointVolumeCallback {
+            state: state.clone(),
+            session_manager: session_manager.clone(),
+        }
+        .into();
+        unsafe { endpoint_volume.RegisterControlChangeNotify(&endpoint_cb)? };
+
+        // Sync initial state from what the endpoint reports
+        let init_vol = unsafe { endpoint_volume.GetMasterVolumeLevelScalar()? };
+        let init_muted = unsafe { endpoint_volume.GetMute()?.as_bool() };
+        {
+            let mut s = state.lock().unwrap();
+            s.volume = init_vol;
+            s.muted = init_muted;
+        }
+        set_all_sessions_volume(&session_manager, init_vol, init_muted)?;
+
+        Ok(Self {
+            _device: device,
+            endpoint_volume,
+            _endpoint_cb: endpoint_cb,
+            session_manager,
+            _session_cb: session_cb,
+        })
+    }
+}
+
+impl Drop for AudioBridge {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = self
+                .endpoint_volume
+                .UnregisterControlChangeNotify(&self._endpoint_cb);
+            let _ = self
+                .session_manager
+                .UnregisterSessionNotification(&self._session_cb);
+        }
+    }
+}

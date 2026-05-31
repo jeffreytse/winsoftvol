@@ -1,0 +1,36 @@
+[package]
+name = "sound-control"
+version = "0.1.0"
+edition = "2021"
+description = "Makes system volume controls work on USB audio devices without hardware volume control"
+authors = ["Jeffrey Tse <jeffreytse.mail@gmail.com>"]
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Devices_Properties",
+    "implement",
+] }
+winreg = "0.52"
+
+[dependencies]
+tray-icon = { version = "0.24", default-features = false }
+muda = { version = "0.19", default-features = false }
+image = { version = "0.25", default-features = false, features = ["png"] }
+anyhow = "1"
+
+[build-dependencies]
+winresource = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+
+[profile.release]
+opt-level = "s"
+strip = true
