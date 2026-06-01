@@ -1,0 +1,59 @@
+<svg width="600" height="200" viewBox="0 0 600 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Speaker body gradient — lit from above -->
+    <linearGradient id="spk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d95f5"/>
+      <stop offset="100%" stop-color="#005bb5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="600" height="200" fill="#0d1117" rx="14"/>
+
+  <!--
+    Unified speaker body: enclosure (rounded left) + cone (convex bezier sides).
+    One continuous path — no seam, no junction line.
+    Cone sides bow outward (Q control above/below midpoint) for organic membrane feel.
+  -->
+  <path d="
+    M 92,71
+    L 62,71
+    Q 58,71 58,75
+    L 58,103
+    Q 58,107 62,107
+    L 92,107
+    Q 113,122 134,127
+    L 134,51
+    Q 113,56 92,71
+    Z
+  " fill="url(#spk)"/>
+
+  <!-- Sound waves -->
+  <path d="M 142,78 A 11,11 0 0,1 142,100"
+        stroke="#29c5f6" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <path d="M 154,68 A 21,21 0 0,1 154,110"
+        stroke="#29c5f6" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  <path d="M 166,58 A 31,31 0 0,1 166,120"
+        stroke="#29c5f6" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+  <!-- Volume slider track -->
+  <rect x="58" y="141" width="134" height="5" fill="#21262d" rx="2.5"/>
+  <!-- Volume fill (~75%) -->
+  <rect x="58" y="141" width="100" height="5" fill="#29c5f6" rx="2.5"/>
+  <!-- Slider knob -->
+  <circle cx="158" cy="143.5" r="6" fill="#e6edf3"/>
+
+  <!-- Separator -->
+  <rect x="226" y="20" width="1" height="160" fill="#21262d"/>
+
+  <!-- Title -->
+  <text x="256" y="108"
+        font-family="Segoe UI, SF Pro Display, system-ui, sans-serif"
+        font-size="50" font-weight="800"
+        fill="#e6edf3" letter-spacing="-1">WinSoftVol</text>
+
+  <!-- Tagline -->
+  <text x="259" y="138"
+        font-family="Segoe UI, system-ui, sans-serif"
+        font-size="13" fill="#6e7681" letter-spacing="0.5">Software Volume Bridge · Windows USB Audio</text>
+</svg>

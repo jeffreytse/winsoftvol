@@ -1,73 +1,152 @@
-# Sound Control
+<div align="center">
+  <a href="https://github.com/jeffreytse/winsoftvol">
+    <img alt="WinSoftVol — Software Volume Bridge" src="assets/logo.svg" width="600">
+  </a>
 
-A Windows system tray app that makes the taskbar volume slider, keyboard volume keys, and mute button work correctly on USB audio devices that lack hardware volume control.
+  <p>🔊 Software volume control for USB audio devices on Windows.</p>
 
-## Why This Exists
+  <br><h1>⚒️ WinSoftVol ⚒️</h1>
+</div>
 
-USB audio devices that implement the USB Audio Class without a Feature Unit — such as the **WONDOM UCM (PCM2706C)** — report no hardware volume capability to Windows. Windows still lets you drag the taskbar slider or press volume keys, and it stores the value in the endpoint, but it never sends the change to the hardware because there's nothing to send it to. The result: the slider moves, the number changes, nothing actually happens.
+<p align="center">
+  <a href="https://github.com/sponsors/jeffreytse">
+    <img src="https://img.shields.io/static/v1?label=sponsor&message=%E2%9D%A4&logo=GitHub&link=&color=greygreen"
+      alt="Donate (GitHub Sponsor)" />
+  </a>
 
-Sound Control bridges the gap. It watches the Windows audio endpoint for volume and mute changes and immediately propagates them to the software session volumes of every running application. This is the same mechanism that the volume mixer uses ("application volume"), so it works even when the hardware ignores the endpoint level.
+  <a href="https://github.com/jeffreytse/winsoftvol/releases">
+    <img src="https://img.shields.io/github/v/release/jeffreytse/winsoftvol?color=brightgreen"
+      alt="Release Version" />
+  </a>
 
-## Features
+  <a href="https://opensource.org/licenses/MIT">
+    <img src="https://img.shields.io/badge/License-MIT-brightgreen.svg"
+      alt="License: MIT" />
+  </a>
 
-- Intercepts system volume changes (taskbar slider, keyboard keys, mute button) and applies them to all audio sessions
-- Tray icon with tooltip; right-click for the menu
-- Main window with a volume slider and mute checkbox
-- Automatic re-plug detection: reconnecting the USB device restores control within one second
-- Optional autostart on Windows startup (written to the registry Run key)
-- About dialog showing version, build commit, and build time
+  <a href="https://img.shields.io/badge/platform-Windows-blue">
+    <img src="https://img.shields.io/badge/platform-Windows-blue"
+      alt="Platform: Windows" />
+  </a>
+</p>
 
-## Usage
+<div align="center">
+  <h4>
+    <a href="#-why-winsoftvol">Why</a> |
+    <a href="#-features">Features</a> |
+    <a href="#-requirements">Requirements</a> |
+    <a href="#-installation">Install</a> |
+    <a href="#-usage">Usage</a> |
+    <a href="#-platform-notes">Platforms</a> |
+    <a href="#%EF%B8%8F-how-it-works">How It Works</a> |
+    <a href="#%EF%B8%8F-building">Build</a> |
+    <a href="#-license">License</a>
+  </h4>
+</div>
 
-Run `sound-control.exe`. A speaker icon appears in the system tray.
+<div align="center">
+  <sub>Built with ❤︎ by
+  <a href="https://jeffreytse.net">jeffreytse</a> and
+  <a href="https://github.com/jeffreytse/winsoftvol/graphs/contributors">contributors</a>
+  </sub>
+</div>
 
-| Action | Effect |
+<br>
+
+## 🤔 Why WinSoftVol?
+
+You plug in a USB audio device — a DAC, a USB sound card, maybe a WONDOM UCM board — and everything seems fine. Music plays. Then you reach for the taskbar volume slider and drag it down. The number changes. The slider moves. Nothing happens. You press the mute key. Still nothing.
+
+You dig through device properties, update drivers, try every Windows audio setting you can find. Nothing works. You resign yourself to controlling volume from within each application individually, tab by tab, window by window — a small but persistent frustration every single time.
+
+What is actually happening: Windows stores the volume change in the audio endpoint and expects the hardware to act on it. Your device, like many USB Audio Class devices without a Feature Unit in their descriptor, has no hardware volume control to speak of — so the driver silently ignores the request. The per-application session volumes are never touched.
+
+WinSoftVol fixes this. It sits in the system tray, watches the endpoint for changes, and immediately propagates them as software volume to every running audio session. The taskbar slider works. Keyboard keys work. Mute works. It just works — the way it always should have.
+
+## ✨ Features
+
+- 🎚️ Intercepts system volume changes (taskbar slider, keyboard volume keys, mute button) and applies them to all audio sessions as software volume.
+- 🖥️ System tray icon — unobtrusive, always available, zero UI overhead.
+- 🔌 Automatic re-plug detection — reconnecting the USB device restores control within one second.
+- 🚀 Autostart on Windows startup via the registry Run key, toggled from the tray menu.
+- ℹ️  About dialog with version, build commit hash, and build timestamp.
+- 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
+
+## 💼 Requirements
+
+- Windows 10 or later (x64)
+
+## 📦 Installation
+
+1. Download the latest `winsoftvol-vX.Y.Z-<hash>.exe` from the [Releases](https://github.com/jeffreytse/winsoftvol/releases) page.
+2. Run it. A speaker icon appears in the system tray.
+3. Optional: right-click the tray icon → **Start on Windows startup** to enable autostart.
+
+No installer. No admin rights required. Single executable.
+
+## 📚 Usage
+
+Right-click the tray icon to open the menu.
+
+| Menu Item | Effect |
 |---|---|
-| Right-click tray icon | Opens menu |
-| Open Sound Control | Shows the volume control window |
-| System volume slider / keys | Volume applied to all audio sessions |
-| Mute button | Mutes all audio sessions |
-| Start on Windows startup | Registers the exe in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` |
-| Quit Sound Control | Exits cleanly |
+| About WinSoftVol | Shows version, build info, and description |
+| Start on Windows startup | Toggles autostart (registry Run key) |
+| Quit WinSoftVol | Exits cleanly |
 
-When the main window is open you can also drag the slider or toggle the Mute checkbox directly. Close the window to send it back to the tray; the app keeps running.
+Once running, use Windows volume controls normally:
 
-## Building
+| Control | Effect |
+|---|---|
+| Taskbar volume slider | Adjusts volume for all audio sessions |
+| Keyboard volume up/down keys | Same |
+| Keyboard mute key | Mutes / unmutes all audio sessions |
 
-Requires Rust (stable) and a Windows cross-compile toolchain on macOS/Linux, or a native Windows Rust toolchain.
+## 🌍 Platform Notes
 
-### macOS (cross-compile to Windows x64)
+This problem is Windows-specific. On other platforms, the audio stack already handles software volume transparently:
 
-```sh
-# First time only
-make setup   # installs rustup target + mingw-w64
+- **Linux (PulseAudio / PipeWire)**: The audio server applies software volume during mixing before audio reaches the driver. Whether the hardware has a Feature Unit is irrelevant — volume is scaled in the server, not the hardware.
+- **macOS (CoreAudio)**: The HAL applies software volume attenuation for devices that report no hardware volume capability. The system volume slider controls the HAL mix level, not a hardware register.
+- **Windows**: Volume changes are written to the endpoint and the driver is expected to apply them in hardware. If the device has no Feature Unit, the driver ignores the change. Per-application session volumes are not updated unless something bridges them — which is what WinSoftVol does.
 
-# Build
-make         # release binary at target/x86_64-pc-windows-gnu/release/sound-control.exe
-
-# Versioned dist package
-make dist    # copies to dist/sound-control-v<version>-<hash>.exe
-```
-
-### Windows (native)
-
-```sh
-cargo build --release
-```
-
-## How It Works
+## ⚙️ How It Works
 
 Windows exposes audio through the Core Audio API. Each device has an **endpoint volume** (`IAudioEndpointVolume`) and a set of per-application **session volumes** (`ISimpleAudioVolume`).
 
 On normal hardware, Windows writes the endpoint volume and the driver applies it. On devices without a Feature Unit, the driver ignores the endpoint level entirely.
 
-Sound Control:
+WinSoftVol:
 
-1. Registers `IAudioEndpointVolumeCallback` on the default render device. Every time the endpoint level changes (user moves the slider, presses a key), `OnNotify` fires on the STA thread.
+1. Registers `IAudioEndpointVolumeCallback` on the default render device. Every time the endpoint level changes (slider, key press), `OnNotify` fires on the COM STA thread.
 2. Inside `OnNotify`, enumerates all active audio sessions via `IAudioSessionManager2` and sets each session's master volume and mute to match the endpoint level.
-3. Registers `IAudioSessionNotification` so newly started applications are also picked up.
-4. Watches for device plug/unplug via `IMMNotificationClient` and reinitialises the bridge within one second.
+3. Registers `IAudioSessionNotification` so applications started after WinSoftVol are picked up automatically.
+4. Registers `IMMNotificationClient` to detect device plug/unplug events and reinitialise the bridge within one second.
 
-## License
+## 🛠️ Building
 
-MIT
+Requires Rust (stable).
+
+#### macOS — cross-compile to Windows x64
+
+```sh
+# First time only
+make setup   # installs rustup target x86_64-pc-windows-gnu + mingw-w64
+
+# Build versioned release binary
+make         # produces dist/winsoftvol-v<version>-<hash>.exe
+```
+
+#### Windows — native build
+
+```sh
+cargo build --release
+```
+
+## 🔫 Contributing
+
+Issues and Pull Requests are welcome. If you've never contributed to an open source project before, feel free to [open an issue](https://github.com/jeffreytse/winsoftvol/issues/new) describing the problem and we'll go from there.
+
+## 🌈 License
+
+This project is licensed under the [MIT license](https://opensource.org/licenses/mit-license.php) © Jeffrey Tse.

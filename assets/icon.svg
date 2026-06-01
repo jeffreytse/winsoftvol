@@ -1,6 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect x="5" y="36" width="22" height="28" rx="3" fill="white"/>
-  <polygon points="27,36 55,8 55,92 27,64" fill="white"/>
-  <path d="M 63 37 Q 76 50 63 63" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
-  <path d="M 71 24 Q 91 50 71 76" fill="none" stroke="white" stroke-width="7" stroke-linecap="round"/>
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="spk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d95f5"/>
+      <stop offset="100%" stop-color="#005bb5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="256" height="256" fill="#0d1117" rx="40"/>
+
+  <!--
+    Unified speaker body: enclosure (rounded left) + cone (convex bezier sides).
+    Cone sides bow outward via Q control points — organic membrane feel.
+  -->
+  <path d="
+    M 71,86
+    L 36,86
+    Q 31,86 31,91
+    L 31,133
+    Q 31,138 36,138
+    L 71,138
+    Q 111,158 151,163
+    L 151,61
+    Q 111,66 71,86
+    Z
+  " fill="url(#spk)"/>
+
+  <!-- Sound waves -->
+  <path d="M 159,96 A 22,22 0 0,1 159,128"
+        stroke="#29c5f6" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <path d="M 173,80 A 37,37 0 0,1 173,144"
+        stroke="#29c5f6" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <path d="M 187,62 A 52,52 0 0,1 187,162"
+        stroke="#29c5f6" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Volume slider track -->
+  <rect x="31" y="184" width="180" height="6" fill="#21262d" rx="3"/>
+  <!-- Volume fill (~75%) -->
+  <rect x="31" y="184" width="135" height="6" fill="#29c5f6" rx="3"/>
+  <!-- Slider knob -->
+  <circle cx="166" cy="187" r="8" fill="#e6edf3"/>
 </svg>
