@@ -1,5 +1,5 @@
 [package]
-name = "sound-control"
+name = "winsoftvol"
 version = "0.1.0"
 edition = "2021"
 description = "Makes system volume controls work on USB audio devices without hardware volume control"

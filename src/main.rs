@@ -70,6 +70,6 @@ fn run() -> anyhow::Result<()> {
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("sound-control only runs on Windows");
+    eprintln!("winsoftvol only runs on Windows");
     std::process::exit(1);
 }

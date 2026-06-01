@@ -11,10 +11,10 @@ pub struct Tray {
 }
 
 pub fn build_tray(autostart_enabled: bool) -> anyhow::Result<Tray> {
-    let about_item = MenuItem::new("About Sound Control", true, None);
+    let about_item = MenuItem::new("About WinSoftVol", true, None);
     let autostart_item =
         CheckMenuItem::new("Start on Windows startup", true, autostart_enabled, None);
-    let quit_item = MenuItem::new("Quit Sound Control", true, None);
+    let quit_item = MenuItem::new("Quit WinSoftVol", true, None);
 
     let about_id = about_item.id().clone();
     let autostart_id = autostart_item.id().clone();
@@ -33,7 +33,7 @@ pub fn build_tray(autostart_enabled: bool) -> anyhow::Result<Tray> {
 
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip("Sound Control — active")
+        .with_tooltip("WinSoftVol — active")
         .with_icon(icon)
         .build()?;
 

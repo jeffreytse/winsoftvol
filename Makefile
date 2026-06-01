@@ -1,14 +1,14 @@
 TARGET  := x86_64-pc-windows-gnu
 VERSION := $(shell grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
 GIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
-NAME    := sound-control-v$(VERSION)-$(GIT)
+NAME    := winsoftvol-v$(VERSION)-$(GIT)
 
-OUT     := target/$(TARGET)/release/sound-control.exe
+OUT     := target/$(TARGET)/release/winsoftvol.exe
 DIST    := dist/$(NAME).exe
 
 .PHONY: build release debug dist clean setup
 
-build: release
+build: dist
 
 release:
 	cargo build --release --target $(TARGET)

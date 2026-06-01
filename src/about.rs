@@ -9,7 +9,7 @@ pub fn show_about() {
     };
 
     let text = format!(
-        "Sound Control  v{} ({})\n\n{}\n\nAuthor:  {}\nBuilt:   {}",
+        "WinSoftVol  v{} ({})\n\n{}\n\nAuthor:  {}\nBuilt:   {}",
         env!("CARGO_PKG_VERSION"),
         env!("GIT_HASH"),
         env!("CARGO_PKG_DESCRIPTION"),
@@ -18,7 +18,7 @@ pub fn show_about() {
     );
 
     let text_w: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
-    let title_w: Vec<u16> = "About Sound Control\0".encode_utf16().collect();
+    let title_w: Vec<u16> = "About WinSoftVol\0".encode_utf16().collect();
 
     unsafe {
         MessageBoxW(

@@ -1,6 +1,6 @@
 use winreg::{enums::*, RegKey};
 
-const APP_NAME: &str = "SoundControl";
+const APP_NAME: &str = "WinSoftVol";
 const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 
 pub fn is_enabled() -> bool {
