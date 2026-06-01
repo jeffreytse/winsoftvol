@@ -6,6 +6,7 @@ use windows::{
     },
 };
 
+/// Sets every session to the same absolute volume. Used for initial sync and new sessions.
 pub fn set_all_sessions_volume(
     session_manager: &IAudioSessionManager2,
     volume: f32,
@@ -19,6 +20,35 @@ pub fn set_all_sessions_volume(
         if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
             unsafe {
                 let _ = vol.SetMasterVolume(volume, std::ptr::null());
+                let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Scales each session proportionally by (new_volume / old_volume).
+/// Preserves per-app volume balance set in Windows Volume Mixer.
+pub fn scale_all_sessions_volume(
+    session_manager: &IAudioSessionManager2,
+    old_volume: f32,
+    new_volume: f32,
+    muted: bool,
+) -> Result<()> {
+    let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
+    let count = unsafe { enumerator.GetCount()? };
+
+    for i in 0..count {
+        let session = unsafe { enumerator.GetSession(i)? };
+        if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
+            unsafe {
+                let scaled = if old_volume > f32::EPSILON {
+                    let cur = vol.GetMasterVolume().unwrap_or(new_volume);
+                    (cur * new_volume / old_volume).clamp(0.0, 1.0)
+                } else {
+                    new_volume
+                };
+                let _ = vol.SetMasterVolume(scaled, std::ptr::null());
                 let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());
             }
         }

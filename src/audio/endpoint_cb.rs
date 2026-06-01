@@ -13,7 +13,7 @@ use windows::{
     },
 };
 
-use super::{VolumeState, session_mgr::set_all_sessions_volume};
+use super::{VolumeState, session_mgr::scale_all_sessions_volume};
 
 // Identifies volume changes we trigger ourselves — prevents infinite callback loop
 // when resetting the endpoint to 1.0 in force-software-volume mode.
@@ -44,16 +44,23 @@ impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
             return Ok(());
         }
 
-        let volume = data.fMasterVolume;
+        let new_volume = data.fMasterVolume;
         let muted = data.bMuted.as_bool();
+
+        // Read old volume before updating state — needed for proportional scaling
+        let old_volume = {
+            let s = self.state.lock().unwrap();
+            s.volume
+        };
 
         {
             let mut s = self.state.lock().unwrap();
-            s.volume = volume;
+            s.volume = new_volume;
             s.muted = muted;
         }
 
-        set_all_sessions_volume(&self.session_manager, volume, muted)?;
+        // Scale proportionally to preserve per-app balance (Windows Volume Mixer settings)
+        scale_all_sessions_volume(&self.session_manager, old_volume, new_volume, muted)?;
 
         // Force software volume: keep endpoint at 1.0 so hardware doesn't also
         // attenuate. All attenuation is handled by the session mixer above.
