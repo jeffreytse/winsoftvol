@@ -1,19 +1,18 @@
 use std::sync::{
-    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
 };
 use windows::{
-    core::{GUID, Result},
+    core::{Result, GUID},
     Win32::Media::Audio::{
         Endpoints::{
-            IAudioEndpointVolume, IAudioEndpointVolumeCallback,
-            IAudioEndpointVolumeCallback_Impl,
+            IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl,
         },
-        AUDIO_VOLUME_NOTIFICATION_DATA, IAudioSessionManager2,
+        IAudioSessionManager2, AUDIO_VOLUME_NOTIFICATION_DATA,
     },
 };
 
-use super::{VolumeState, session_mgr::scale_all_sessions_volume};
+use super::{session_mgr::scale_all_sessions_volume, VolumeState};
 
 // Identifies volume changes we trigger ourselves — prevents infinite callback loop
 // when resetting the endpoint to 1.0 in force-software-volume mode.

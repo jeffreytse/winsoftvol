@@ -23,7 +23,10 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+    use std::sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    };
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
@@ -34,8 +37,7 @@ fn run() -> anyhow::Result<()> {
     let softvol_flag = Arc::new(AtomicBool::new(softvol::is_enabled()));
 
     let watcher = audio::DeviceWatcher::new()?;
-    let mut bridge: Option<audio::AudioBridge> =
-        audio::AudioBridge::new(softvol_flag.clone()).ok();
+    let mut bridge: Option<audio::AudioBridge> = audio::AudioBridge::new(softvol_flag.clone()).ok();
     let tray_state = tray::build_tray(autostart::is_enabled(), softvol::is_enabled())?;
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };

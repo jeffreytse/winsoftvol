@@ -15,8 +15,7 @@ pub fn build_tray(autostart_enabled: bool, softvol_enabled: bool) -> anyhow::Res
     let about_item = MenuItem::new("About WinSoftVol", true, None);
     let autostart_item =
         CheckMenuItem::new("Start on Windows startup", true, autostart_enabled, None);
-    let softvol_item =
-        CheckMenuItem::new("Force software volume", true, softvol_enabled, None);
+    let softvol_item = CheckMenuItem::new("Force software volume", true, softvol_enabled, None);
     let quit_item = MenuItem::new("Quit WinSoftVol", true, None);
 
     let about_id = about_item.id().clone();

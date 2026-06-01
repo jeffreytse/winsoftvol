@@ -10,10 +10,7 @@ use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
 use session_mgr::set_all_sessions_volume;
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::AtomicBool,
-};
+use std::sync::{atomic::AtomicBool, Arc, Mutex};
 use windows::{
     core::Result,
     Win32::{
