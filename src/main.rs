@@ -6,6 +6,8 @@ mod about;
 mod audio;
 #[cfg(windows)]
 mod autostart;
+#[cfg(windows)]
+mod softvol;
 mod tray;
 
 #[cfg(windows)]
@@ -21,6 +23,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
+    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
@@ -28,9 +31,12 @@ fn run() -> anyhow::Result<()> {
         },
     };
 
+    let softvol_flag = Arc::new(AtomicBool::new(softvol::is_enabled()));
+
     let watcher = audio::DeviceWatcher::new()?;
-    let mut bridge: Option<audio::AudioBridge> = audio::AudioBridge::new().ok();
-    let tray_state = tray::build_tray(autostart::is_enabled())?;
+    let mut bridge: Option<audio::AudioBridge> =
+        audio::AudioBridge::new(softvol_flag.clone()).ok();
+    let tray_state = tray::build_tray(autostart::is_enabled(), softvol::is_enabled())?;
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
@@ -46,7 +52,7 @@ fn run() -> anyhow::Result<()> {
 
         if watcher.check() {
             drop(bridge.take());
-            bridge = audio::AudioBridge::new().ok();
+            bridge = audio::AudioBridge::new(softvol_flag.clone()).ok();
         }
 
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
@@ -62,6 +68,12 @@ fn run() -> anyhow::Result<()> {
                 let new_state = !autostart::is_enabled();
                 if let Err(e) = autostart::set(new_state) {
                     eprintln!("autostart error: {e}");
+                }
+            } else if event.id() == &tray_state.softvol_id {
+                let new_state = !softvol::is_enabled();
+                softvol_flag.store(new_state, Ordering::Relaxed);
+                if let Err(e) = softvol::set(new_state) {
+                    eprintln!("softvol error: {e}");
                 }
             }
         }

@@ -10,7 +10,10 @@ use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
 use session_mgr::set_all_sessions_volume;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc, Mutex,
+    atomic::AtomicBool,
+};
 use windows::{
     core::Result,
     Win32::{
@@ -36,7 +39,7 @@ pub struct AudioBridge {
 }
 
 impl AudioBridge {
-    pub fn new() -> Result<Self> {
+    pub fn new(softvol: Arc<AtomicBool>) -> Result<Self> {
         let state = Arc::new(Mutex::new(VolumeState {
             volume: 1.0,
             muted: false,
@@ -57,6 +60,8 @@ impl AudioBridge {
         let endpoint_cb: IAudioEndpointVolumeCallback = EndpointVolumeCallback {
             state: state.clone(),
             session_manager: session_manager.clone(),
+            endpoint_volume: endpoint_volume.clone(),
+            softvol,
         }
         .into();
         unsafe { endpoint_volume.RegisterControlChangeNotify(&endpoint_cb)? };
