@@ -4,8 +4,8 @@ mod endpoint_cb;
 mod session_cb;
 pub mod session_mgr;
 
-pub use device::DeviceWatcher;
 use device::get_default_device;
+pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
 use session_mgr::set_all_sessions_volume;
@@ -45,8 +45,7 @@ impl AudioBridge {
         let device = get_default_device()?;
 
         // Register session notification BEFORE enumerating to avoid missing sessions
-        let session_manager: IAudioSessionManager2 =
-            unsafe { device.Activate(CLSCTX_ALL, None)? };
+        let session_manager: IAudioSessionManager2 = unsafe { device.Activate(CLSCTX_ALL, None)? };
         let session_cb: IAudioSessionNotification = SessionNotificationHandler {
             state: state.clone(),
         }
@@ -54,8 +53,7 @@ impl AudioBridge {
         unsafe { session_manager.RegisterSessionNotification(&session_cb)? };
 
         // Register endpoint volume callback — translates OS volume changes to sessions
-        let endpoint_volume: IAudioEndpointVolume =
-            unsafe { device.Activate(CLSCTX_ALL, None)? };
+        let endpoint_volume: IAudioEndpointVolume = unsafe { device.Activate(CLSCTX_ALL, None)? };
         let endpoint_cb: IAudioEndpointVolumeCallback = EndpointVolumeCallback {
             state: state.clone(),
             session_manager: session_manager.clone(),
@@ -102,7 +100,10 @@ mod tests {
 
     #[test]
     fn volume_state_defaults() {
-        let s = VolumeState { volume: 1.0, muted: false };
+        let s = VolumeState {
+            volume: 1.0,
+            muted: false,
+        };
         assert!((s.volume - 1.0).abs() < f32::EPSILON);
         assert!(!s.muted);
     }

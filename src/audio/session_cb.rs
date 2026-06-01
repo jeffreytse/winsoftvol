@@ -4,8 +4,8 @@ use windows::{
     Win32::{
         Foundation::BOOL,
         Media::Audio::{
-            IAudioSessionControl, IAudioSessionNotification,
-            IAudioSessionNotification_Impl, ISimpleAudioVolume,
+            IAudioSessionControl, IAudioSessionNotification, IAudioSessionNotification_Impl,
+            ISimpleAudioVolume,
         },
     },
 };

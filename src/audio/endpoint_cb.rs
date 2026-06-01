@@ -3,11 +3,11 @@ use windows::{
     core::Result,
     Win32::Media::Audio::{
         Endpoints::{IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl},
-        AUDIO_VOLUME_NOTIFICATION_DATA, IAudioSessionManager2,
+        IAudioSessionManager2, AUDIO_VOLUME_NOTIFICATION_DATA,
     },
 };
 
-use super::{VolumeState, session_mgr::set_all_sessions_volume};
+use super::{session_mgr::set_all_sessions_volume, VolumeState};
 
 #[windows::core::implement(IAudioEndpointVolumeCallback)]
 pub struct EndpointVolumeCallback {

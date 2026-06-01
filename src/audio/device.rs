@@ -32,10 +32,16 @@ impl DeviceWatcher {
         let changed = Arc::new(AtomicBool::new(false));
         let enumerator: IMMDeviceEnumerator =
             unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)? };
-        let client: IMMNotificationClient =
-            DeviceChangeNotifier { changed: changed.clone() }.into();
+        let client: IMMNotificationClient = DeviceChangeNotifier {
+            changed: changed.clone(),
+        }
+        .into();
         unsafe { enumerator.RegisterEndpointNotificationCallback(&client)? };
-        Ok(Self { enumerator, _client: client, changed })
+        Ok(Self {
+            enumerator,
+            _client: client,
+            changed,
+        })
     }
 
     pub fn check(&self) -> bool {

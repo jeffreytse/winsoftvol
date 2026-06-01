@@ -11,7 +11,9 @@ mod tray;
 #[cfg(windows)]
 fn main() -> anyhow::Result<()> {
     use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
-    unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED)?; }
+    unsafe {
+        CoInitializeEx(None, COINIT_APARTMENTTHREADED)?;
+    }
     let result = run();
     unsafe { CoUninitialize() };
     result
@@ -51,7 +53,9 @@ fn run() -> anyhow::Result<()> {
             if event.id() == &tray_state.about_id {
                 about::show_about();
             } else if event.id() == &tray_state.quit_id {
-                unsafe { let _ = KillTimer(HWND(0), 1); }
+                unsafe {
+                    let _ = KillTimer(HWND(0), 1);
+                }
                 drop(bridge.take());
                 return Ok(());
             } else if event.id() == &tray_state.autostart_id {
@@ -63,7 +67,9 @@ fn run() -> anyhow::Result<()> {
         }
     }
 
-    unsafe { let _ = KillTimer(HWND(0), 1); }
+    unsafe {
+        let _ = KillTimer(HWND(0), 1);
+    }
     drop(bridge.take());
     Ok(())
 }
