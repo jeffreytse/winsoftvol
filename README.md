@@ -69,6 +69,7 @@ WinSoftVol fixes this. It sits in the system tray, watches the endpoint for chan
 - 🖥️ System tray icon — unobtrusive, always available, zero UI overhead.
 - 🔌 Automatic re-plug detection — reconnecting the USB device restores control within one second.
 - 🚀 Autostart on Windows startup via the registry Run key, toggled from the tray menu.
+- 🔇 Force software volume mode — disables hardware volume on capable devices, routing all attenuation through the session mixer for cleaner, step-free control.
 - ℹ️  About dialog with version, build commit hash, and build timestamp.
 - 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
 
@@ -92,6 +93,7 @@ Right-click the tray icon to open the menu.
 |---|---|
 | About WinSoftVol | Shows version, build info, and description |
 | Start on Windows startup | Toggles autostart (registry Run key) |
+| Force software volume | Routes all volume control through the session mixer; disables hardware attenuation on capable devices |
 | Quit WinSoftVol | Exits cleanly |
 
 Once running, use Windows volume controls normally:
