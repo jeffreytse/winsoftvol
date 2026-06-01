@@ -6,7 +6,7 @@ NAME    := winsoftvol-v$(VERSION)-$(GIT)
 OUT     := target/$(TARGET)/release/winsoftvol.exe
 DIST    := dist/$(NAME).exe
 
-.PHONY: build release debug dist clean setup
+.PHONY: build release debug dist clean setup test
 
 build: dist
 
@@ -26,6 +26,9 @@ dist: release
 clean:
 	cargo clean
 	rm -rf dist
+
+test:
+	cargo test
 
 # Install cross-compile toolchain (macOS only)
 setup:

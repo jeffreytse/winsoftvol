@@ -21,3 +21,29 @@ pub fn set(enable: bool) -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn app_name_matches_registry_key() {
+        assert_eq!(APP_NAME, "WinSoftVol");
+    }
+
+    #[test]
+    fn run_key_path_is_correct() {
+        assert!(RUN_KEY.contains(r"CurrentVersion\Run"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn round_trip() {
+        let original = is_enabled();
+        set(true).expect("enable autostart");
+        assert!(is_enabled(), "should be enabled after set(true)");
+        set(false).expect("disable autostart");
+        assert!(!is_enabled(), "should be disabled after set(false)");
+        set(original).unwrap();
+    }
+}

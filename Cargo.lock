@@ -560,20 +560,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
-name = "sound-control"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "image",
- "muda",
- "tray-icon",
- "windows",
- "winreg",
- "winresource",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -997,4 +983,18 @@ checksum = "0986a8b1d586b7d3e4fe3d9ea39fb451ae22869dcea4aa109d287a374d866087"
 dependencies = [
  "toml",
  "version_check",
+]
+
+[[package]]
+name = "winsoftvol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "image",
+ "muda",
+ "tray-icon",
+ "windows",
+ "winreg",
+ "winresource",
 ]

@@ -95,3 +95,15 @@ impl Drop for AudioBridge {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::VolumeState;
+
+    #[test]
+    fn volume_state_defaults() {
+        let s = VolumeState { volume: 1.0, muted: false };
+        assert!((s.volume - 1.0).abs() < f32::EPSILON);
+        assert!(!s.muted);
+    }
+}
