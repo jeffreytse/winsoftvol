@@ -48,7 +48,7 @@ mod tests {
     fn null_terminated_length_is_chars_plus_one() {
         let s = "WinSoftVol";
         let v = null_terminated_utf16(s);
-        assert_eq!(v.len(), s.len() + 1);
+        assert_eq!(v.len(), s.encode_utf16().count() + 1);
     }
 
     #[test]
