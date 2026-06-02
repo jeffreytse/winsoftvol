@@ -1,12 +1,13 @@
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicU32, Ordering},
     Arc, Mutex,
 };
 use windows::{
     core::{Result, GUID},
     Win32::Media::Audio::{
         Endpoints::{
-            IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl,
+            IAudioEndpointVolume, IAudioEndpointVolumeCallback,
+            IAudioEndpointVolumeCallback_Impl,
         },
         IAudioSessionManager2, AUDIO_VOLUME_NOTIFICATION_DATA,
     },
@@ -29,6 +30,7 @@ pub struct EndpointVolumeCallback {
     pub session_manager: IAudioSessionManager2,
     pub endpoint_volume: IAudioEndpointVolume,
     pub softvol: Arc<AtomicBool>,
+    pub cap: Arc<AtomicU32>,
 }
 
 impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
@@ -58,8 +60,8 @@ impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
             s.muted = muted;
         }
 
-        // Scale proportionally to preserve per-app balance (Windows Volume Mixer settings)
-        scale_all_sessions_volume(&self.session_manager, old_volume, new_volume, muted)?;
+        let cap = self.cap.load(Ordering::Relaxed) as f32 / 100.0;
+        scale_all_sessions_volume(&self.session_manager, old_volume, new_volume, muted, cap)?;
 
         // Force software volume: keep endpoint at 1.0 so hardware doesn't also
         // attenuate. All attenuation is handled by the session mixer above.

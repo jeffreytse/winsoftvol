@@ -8,6 +8,8 @@ mod audio;
 mod autostart;
 #[cfg(windows)]
 mod softvol;
+#[cfg(windows)]
+mod volcap;
 mod tray;
 
 #[cfg(windows)]
@@ -24,7 +26,7 @@ fn main() -> anyhow::Result<()> {
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
     use std::sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU32, Ordering},
         Arc,
     };
     use windows::Win32::{
@@ -35,10 +37,13 @@ fn run() -> anyhow::Result<()> {
     };
 
     let softvol_flag = Arc::new(AtomicBool::new(softvol::is_enabled()));
+    let cap_flag = Arc::new(AtomicU32::new(volcap::get()));
 
     let watcher = audio::DeviceWatcher::new()?;
-    let mut bridge: Option<audio::AudioBridge> = audio::AudioBridge::new(softvol_flag.clone()).ok();
-    let tray_state = tray::build_tray(autostart::is_enabled(), softvol::is_enabled())?;
+    let mut bridge: Option<audio::AudioBridge> =
+        audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+    let tray_state =
+        tray::build_tray(autostart::is_enabled(), softvol::is_enabled(), volcap::get())?;
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
@@ -54,7 +59,7 @@ fn run() -> anyhow::Result<()> {
 
         if watcher.check() {
             drop(bridge.take());
-            bridge = audio::AudioBridge::new(softvol_flag.clone()).ok();
+            bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
         }
 
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
@@ -76,6 +81,16 @@ fn run() -> anyhow::Result<()> {
                 softvol_flag.store(new_state, Ordering::Relaxed);
                 if let Err(e) = softvol::set(new_state) {
                     eprintln!("softvol error: {e}");
+                }
+            } else {
+                for (id, pct) in &tray_state.volcap_ids {
+                    if event.id() == id {
+                        cap_flag.store(*pct, Ordering::Relaxed);
+                        if let Err(e) = volcap::set(*pct) {
+                            eprintln!("volcap error: {e}");
+                        }
+                        break;
+                    }
                 }
             }
         }

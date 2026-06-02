@@ -11,6 +11,7 @@ pub fn set_all_sessions_volume(
     session_manager: &IAudioSessionManager2,
     volume: f32,
     muted: bool,
+    cap: f32,
 ) -> Result<()> {
     let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
     let count = unsafe { enumerator.GetCount()? };
@@ -19,7 +20,7 @@ pub fn set_all_sessions_volume(
         let session = unsafe { enumerator.GetSession(i)? };
         if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
             unsafe {
-                let _ = vol.SetMasterVolume(volume, std::ptr::null());
+                let _ = vol.SetMasterVolume((volume * cap).clamp(0.0, 1.0), std::ptr::null());
                 let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());
             }
         }
@@ -27,13 +28,14 @@ pub fn set_all_sessions_volume(
     Ok(())
 }
 
-/// Scales each session proportionally by (new_volume / old_volume).
+/// Scales each session proportionally by (new_volume / old_volume), clamped to cap.
 /// Preserves per-app volume balance set in Windows Volume Mixer.
 pub fn scale_all_sessions_volume(
     session_manager: &IAudioSessionManager2,
     old_volume: f32,
     new_volume: f32,
     muted: bool,
+    cap: f32,
 ) -> Result<()> {
     let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
     let count = unsafe { enumerator.GetCount()? };
@@ -44,9 +46,9 @@ pub fn scale_all_sessions_volume(
             unsafe {
                 let scaled = if old_volume > f32::EPSILON {
                     let cur = vol.GetMasterVolume().unwrap_or(new_volume);
-                    (cur * new_volume / old_volume).clamp(0.0, 1.0)
+                    (cur * new_volume / old_volume).clamp(0.0, cap)
                 } else {
-                    new_volume
+                    (new_volume * cap).clamp(0.0, 1.0)
                 };
                 let _ = vol.SetMasterVolume(scaled, std::ptr::null());
                 let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());

@@ -10,7 +10,10 @@ use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
 use session_mgr::set_all_sessions_volume;
 
-use std::sync::{atomic::AtomicBool, Arc, Mutex};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU32, Ordering},
+    Arc, Mutex,
+};
 use windows::{
     core::Result,
     Win32::{
@@ -36,7 +39,7 @@ pub struct AudioBridge {
 }
 
 impl AudioBridge {
-    pub fn new(softvol: Arc<AtomicBool>) -> Result<Self> {
+    pub fn new(softvol: Arc<AtomicBool>, cap: Arc<AtomicU32>) -> Result<Self> {
         let state = Arc::new(Mutex::new(VolumeState {
             volume: 1.0,
             muted: false,
@@ -59,6 +62,7 @@ impl AudioBridge {
             session_manager: session_manager.clone(),
             endpoint_volume: endpoint_volume.clone(),
             softvol,
+            cap: cap.clone(),
         }
         .into();
         unsafe { endpoint_volume.RegisterControlChangeNotify(&endpoint_cb)? };
@@ -71,7 +75,8 @@ impl AudioBridge {
             s.volume = init_vol;
             s.muted = init_muted;
         }
-        set_all_sessions_volume(&session_manager, init_vol, init_muted)?;
+        let init_cap = cap.load(Ordering::Relaxed) as f32 / 100.0;
+        set_all_sessions_volume(&session_manager, init_vol, init_muted, init_cap)?;
 
         Ok(Self {
             _device: device,
