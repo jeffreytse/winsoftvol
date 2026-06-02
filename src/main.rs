@@ -7,12 +7,12 @@ mod audio;
 #[cfg(windows)]
 mod autostart;
 #[cfg(windows)]
+mod notification;
+#[cfg(windows)]
 mod softvol;
+mod tray;
 #[cfg(windows)]
 mod volcap;
-#[cfg(windows)]
-mod notification;
-mod tray;
 
 #[cfg(windows)]
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -31,7 +31,7 @@ unsafe extern "system" fn mouse_hook_proc(
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
     use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, HHOOK, WM_MOUSEWHEEL, MSLLHOOKSTRUCT,
+        CallNextHookEx, HHOOK, MSLLHOOKSTRUCT, WM_MOUSEWHEEL,
     };
     if code >= 0 && wparam.0 as u32 == WM_MOUSEWHEEL {
         if CURSOR_OVER_TRAY.load(Ordering::Relaxed) {
@@ -60,15 +60,12 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    use std::sync::{
-        atomic::AtomicU32,
-        Arc,
-    };
+    use std::sync::{atomic::AtomicU32, Arc};
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
-            DispatchMessageW, GetMessageW, KillTimer, SetTimer, TranslateMessage,
-            SetWindowsHookExW, UnhookWindowsHookEx, WH_MOUSE_LL, MSG,
+            DispatchMessageW, GetMessageW, KillTimer, SetTimer, SetWindowsHookExW,
+            TranslateMessage, UnhookWindowsHookEx, MSG, WH_MOUSE_LL,
         },
     };
 
@@ -80,8 +77,11 @@ fn run() -> anyhow::Result<()> {
     let watcher = audio::DeviceWatcher::new()?;
     let mut bridge: Option<audio::AudioBridge> =
         audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
-    let tray_state =
-        tray::build_tray(autostart::is_enabled(), softvol::is_enabled(), volcap::get())?;
+    let tray_state = tray::build_tray(
+        autostart::is_enabled(),
+        softvol::is_enabled(),
+        volcap::get(),
+    )?;
 
     let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0)? };
 
@@ -171,7 +171,9 @@ fn run() -> anyhow::Result<()> {
                     let _ = KillTimer(HWND(0), 1);
                 }
                 drop(bridge.take());
-                unsafe { let _ = UnhookWindowsHookEx(hook); }
+                unsafe {
+                    let _ = UnhookWindowsHookEx(hook);
+                }
                 return Ok(());
             } else if event.id() == &tray_state.autostart_id {
                 let new_state = !autostart::is_enabled();

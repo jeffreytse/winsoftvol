@@ -19,7 +19,9 @@ use windows::{
     Win32::{
         Media::Audio::{
             AudioSessionStateActive,
-            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioMeterInformation},
+            Endpoints::{
+                IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioMeterInformation,
+            },
             IAudioSessionManager2, IAudioSessionNotification, IMMDevice,
         },
         System::Com::CLSCTX_ALL,

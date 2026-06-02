@@ -30,10 +30,7 @@ pub fn set_all_sessions_volume(
 }
 
 /// Mutes or unmutes every session without touching per-app volume levels.
-pub fn set_all_sessions_mute(
-    session_manager: &IAudioSessionManager2,
-    muted: bool,
-) -> Result<()> {
+pub fn set_all_sessions_mute(session_manager: &IAudioSessionManager2, muted: bool) -> Result<()> {
     let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
     let count = unsafe { enumerator.GetCount()? };
     for i in 0..count {

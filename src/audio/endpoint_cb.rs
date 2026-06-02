@@ -6,8 +6,7 @@ use windows::{
     core::{Result, GUID},
     Win32::Media::Audio::{
         Endpoints::{
-            IAudioEndpointVolume, IAudioEndpointVolumeCallback,
-            IAudioEndpointVolumeCallback_Impl,
+            IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl,
         },
         IAudioSessionManager2, AUDIO_VOLUME_NOTIFICATION_DATA,
     },
