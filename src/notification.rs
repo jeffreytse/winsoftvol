@@ -23,6 +23,20 @@ pub fn show_device_reconnected() {
     );
 }
 
+pub fn show_exclusive_mode_active() {
+    let _ = toast(
+        "WinSoftVol — exclusive mode detected",
+        "An app bypassed the audio mixer. Volume control won't apply to it until it releases the device.",
+    );
+}
+
+pub fn show_exclusive_mode_ended() {
+    let _ = toast(
+        "WinSoftVol",
+        "Exclusive audio mode ended — volume control restored.",
+    );
+}
+
 fn toast(title: &str, body: &str) -> Result<()> {
     let xml = XmlDocument::new()?;
     xml.LoadXml(&HSTRING::from(format!(

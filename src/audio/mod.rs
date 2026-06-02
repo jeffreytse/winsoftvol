@@ -18,7 +18,8 @@ use windows::{
     core::Result,
     Win32::{
         Media::Audio::{
-            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback},
+            AudioSessionStateActive,
+            Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioMeterInformation},
             IAudioSessionManager2, IAudioSessionNotification, IMMDevice,
         },
         System::Com::CLSCTX_ALL,
@@ -36,6 +37,7 @@ pub struct AudioBridge {
     _endpoint_cb: IAudioEndpointVolumeCallback,
     session_manager: IAudioSessionManager2,
     _session_cb: IAudioSessionNotification,
+    meter: IAudioMeterInformation,
     state: Arc<Mutex<VolumeState>>,
     softvol: Arc<AtomicBool>,
     cap: Arc<AtomicU32>,
@@ -49,6 +51,7 @@ impl AudioBridge {
         }));
 
         let device = get_default_device()?;
+        let meter: IAudioMeterInformation = unsafe { device.Activate(CLSCTX_ALL, None)? };
 
         // Register session notification BEFORE enumerating to avoid missing sessions
         let session_manager: IAudioSessionManager2 = unsafe { device.Activate(CLSCTX_ALL, None)? };
@@ -87,10 +90,37 @@ impl AudioBridge {
             _endpoint_cb: endpoint_cb,
             session_manager,
             _session_cb: session_cb,
+            meter,
             state,
             softvol,
             cap,
         })
+    }
+
+    /// Returns true when audio is flowing but no active sessions exist in the
+    /// session mixer — the reliable heuristic for WASAPI exclusive mode.
+    pub fn check_exclusive_mode(&self) -> bool {
+        let peak = unsafe { self.meter.GetPeakValue().unwrap_or(0.0) };
+        if peak < 0.05 {
+            return false;
+        }
+        let active = unsafe {
+            self.session_manager
+                .GetSessionEnumerator()
+                .ok()
+                .map(|e| {
+                    let count = e.GetCount().unwrap_or(0);
+                    (0..count).any(|i| {
+                        e.GetSession(i)
+                            .ok()
+                            .and_then(|s| s.GetState().ok())
+                            .map(|st| st == AudioSessionStateActive)
+                            .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false)
+        };
+        !active
     }
 
     pub fn current_volume(&self) -> (f32, bool) {

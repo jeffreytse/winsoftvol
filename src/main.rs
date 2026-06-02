@@ -88,6 +88,7 @@ fn run() -> anyhow::Result<()> {
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
     let mut last_display: Option<(u32, bool)> = None;
+    let mut exclusive_mode_active = false;
     let mut msg = MSG::default();
     loop {
         unsafe {
@@ -115,6 +116,20 @@ fn run() -> anyhow::Result<()> {
                 last_display = Some(display);
                 if let Ok(icon) = tray::render_volume_icon(vol, muted) {
                     let _ = tray_state.update_icon(icon);
+                }
+            }
+        }
+
+        // Check for exclusive mode once per timer tick (1 s)
+        if msg.message == windows::Win32::UI::WindowsAndMessaging::WM_TIMER {
+            if let Some(ref b) = bridge {
+                let exclusive = b.check_exclusive_mode();
+                if exclusive && !exclusive_mode_active {
+                    exclusive_mode_active = true;
+                    notification::show_exclusive_mode_active();
+                } else if !exclusive && exclusive_mode_active {
+                    exclusive_mode_active = false;
+                    notification::show_exclusive_mode_ended();
                 }
             }
         }
