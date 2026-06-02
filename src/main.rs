@@ -10,6 +10,8 @@ mod autostart;
 mod softvol;
 #[cfg(windows)]
 mod volcap;
+#[cfg(windows)]
+mod notification;
 mod tray;
 
 #[cfg(windows)]
@@ -70,6 +72,8 @@ fn run() -> anyhow::Result<()> {
         },
     };
 
+    notification::register_aumid();
+
     let softvol_flag = Arc::new(AtomicBool::new(softvol::is_enabled()));
     let cap_flag = Arc::new(AtomicU32::new(volcap::get()));
 
@@ -118,6 +122,9 @@ fn run() -> anyhow::Result<()> {
         if watcher.check() {
             drop(bridge.take());
             bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+            if bridge.is_some() {
+                notification::show_device_reconnected();
+            }
         }
 
         while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
