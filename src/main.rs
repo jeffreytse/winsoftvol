@@ -13,6 +13,39 @@ mod volcap;
 mod tray;
 
 #[cfg(windows)]
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+
+#[cfg(windows)]
+static CURSOR_OVER_TRAY: AtomicBool = AtomicBool::new(false);
+
+// Accumulates scroll notches from the mouse hook; drained each message loop iteration.
+#[cfg(windows)]
+static PENDING_SCROLL: AtomicI32 = AtomicI32::new(0);
+
+#[cfg(windows)]
+unsafe extern "system" fn mouse_hook_proc(
+    code: i32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CallNextHookEx, HHOOK, WM_MOUSEWHEEL, MSLLHOOKSTRUCT,
+    };
+    if code >= 0 && wparam.0 as u32 == WM_MOUSEWHEEL {
+        if CURSOR_OVER_TRAY.load(Ordering::Relaxed) {
+            let data = &*(lparam.0 as *const MSLLHOOKSTRUCT);
+            let delta = (data.mouseData >> 16) as i16;
+            if delta > 0 {
+                PENDING_SCROLL.fetch_add(1, Ordering::Relaxed);
+            } else {
+                PENDING_SCROLL.fetch_sub(1, Ordering::Relaxed);
+            }
+        }
+    }
+    CallNextHookEx(HHOOK::default(), code, wparam, lparam)
+}
+
+#[cfg(windows)]
 fn main() -> anyhow::Result<()> {
     use windows::Win32::System::Com::{CoInitializeEx, CoUninitialize, COINIT_APARTMENTTHREADED};
     unsafe {
@@ -26,13 +59,14 @@ fn main() -> anyhow::Result<()> {
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
     use std::sync::{
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::AtomicU32,
         Arc,
     };
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
-            DispatchMessageW, GetMessageW, KillTimer, SetTimer, TranslateMessage, MSG,
+            DispatchMessageW, GetMessageW, KillTimer, SetTimer, TranslateMessage,
+            SetWindowsHookExW, UnhookWindowsHookEx, WH_MOUSE_LL, MSG,
         },
     };
 
@@ -44,6 +78,8 @@ fn run() -> anyhow::Result<()> {
         audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
     let tray_state =
         tray::build_tray(autostart::is_enabled(), softvol::is_enabled(), volcap::get())?;
+
+    let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0)? };
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
@@ -57,9 +93,29 @@ fn run() -> anyhow::Result<()> {
             DispatchMessageW(&msg);
         }
 
+        // Drain scroll notches accumulated by the mouse hook
+        let scroll = PENDING_SCROLL.swap(0, Ordering::Relaxed);
+        if scroll != 0 {
+            if let Some(ref b) = bridge {
+                let _ = b.adjust_volume(scroll as f32 * 0.02);
+            }
+        }
+
         if watcher.check() {
             drop(bridge.take());
             bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+        }
+
+        while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
+            match event {
+                tray_icon::TrayIconEvent::Enter { .. } => {
+                    CURSOR_OVER_TRAY.store(true, Ordering::Relaxed);
+                }
+                tray_icon::TrayIconEvent::Leave { .. } => {
+                    CURSOR_OVER_TRAY.store(false, Ordering::Relaxed);
+                }
+                _ => {}
+            }
         }
 
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
@@ -70,6 +126,7 @@ fn run() -> anyhow::Result<()> {
                     let _ = KillTimer(HWND(0), 1);
                 }
                 drop(bridge.take());
+                unsafe { let _ = UnhookWindowsHookEx(hook); }
                 return Ok(());
             } else if event.id() == &tray_state.autostart_id {
                 let new_state = !autostart::is_enabled();
@@ -98,6 +155,7 @@ fn run() -> anyhow::Result<()> {
 
     unsafe {
         let _ = KillTimer(HWND(0), 1);
+        let _ = UnhookWindowsHookEx(hook);
     }
     drop(bridge.take());
     Ok(())

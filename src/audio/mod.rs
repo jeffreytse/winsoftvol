@@ -8,7 +8,7 @@ use device::get_default_device;
 pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
-use session_mgr::set_all_sessions_volume;
+use session_mgr::{scale_all_sessions_volume, set_all_sessions_volume};
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, Ordering},
@@ -36,6 +36,9 @@ pub struct AudioBridge {
     _endpoint_cb: IAudioEndpointVolumeCallback,
     session_manager: IAudioSessionManager2,
     _session_cb: IAudioSessionNotification,
+    state: Arc<Mutex<VolumeState>>,
+    softvol: Arc<AtomicBool>,
+    cap: Arc<AtomicU32>,
 }
 
 impl AudioBridge {
@@ -61,7 +64,7 @@ impl AudioBridge {
             state: state.clone(),
             session_manager: session_manager.clone(),
             endpoint_volume: endpoint_volume.clone(),
-            softvol,
+            softvol: softvol.clone(),
             cap: cap.clone(),
         }
         .into();
@@ -84,7 +87,32 @@ impl AudioBridge {
             _endpoint_cb: endpoint_cb,
             session_manager,
             _session_cb: session_cb,
+            state,
+            softvol,
+            cap,
         })
+    }
+
+    pub fn adjust_volume(&self, delta: f32) -> Result<()> {
+        if self.softvol.load(Ordering::Relaxed) {
+            let (old_vol, new_vol, muted) = {
+                let mut s = self.state.lock().unwrap();
+                let old = s.volume;
+                let new = (old + delta).clamp(0.0, 1.0);
+                s.volume = new;
+                (old, new, s.muted)
+            };
+            let cap = self.cap.load(Ordering::Relaxed) as f32 / 100.0;
+            scale_all_sessions_volume(&self.session_manager, old_vol, new_vol, muted, cap)?;
+        } else {
+            let current = unsafe { self.endpoint_volume.GetMasterVolumeLevelScalar()? };
+            let new_vol = (current + delta).clamp(0.0, 1.0);
+            unsafe {
+                self.endpoint_volume
+                    .SetMasterVolumeLevelScalar(new_vol, std::ptr::null())?;
+            }
+        }
+        Ok(())
     }
 }
 
