@@ -11,6 +11,8 @@ pub struct Tray {
     pub autostart_id: MenuId,
     pub softvol_id: MenuId,
     pub volcap_ids: Vec<(MenuId, u32)>,
+    autostart_item: CheckMenuItem,
+    softvol_item: CheckMenuItem,
     volcap_items: Vec<CheckMenuItem>,
     pub quit_id: MenuId,
 }
@@ -69,6 +71,8 @@ pub fn build_tray(
         autostart_id,
         softvol_id,
         volcap_ids,
+        autostart_item,
+        softvol_item,
         volcap_items,
         quit_id,
     })
@@ -114,10 +118,21 @@ impl Tray {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn set_volcap(&self, pct: u32) {
         for (item, &(item_pct, _)) in self.volcap_items.iter().zip(VOLCAP_PRESETS.iter()) {
             item.set_checked(item_pct == pct);
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn set_softvol(&self, enabled: bool) {
+        self.softvol_item.set_checked(enabled);
+    }
+
+    #[allow(dead_code)]
+    pub fn set_autostart(&self, enabled: bool) {
+        self.autostart_item.set_checked(enabled);
     }
 }
 

@@ -1,0 +1,261 @@
+use std::collections::HashMap;
+
+use anyhow::Context;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Config {
+    #[serde(default)]
+    pub general: GeneralConfig,
+    #[serde(default)]
+    pub default: DeviceConfig,
+    #[serde(default)]
+    pub device: HashMap<String, DeviceConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct GeneralConfig {
+    pub autostart: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceConfig {
+    pub force_sw_volume: bool,
+    pub cap_percent: u32,
+}
+
+impl Default for DeviceConfig {
+    fn default() -> Self {
+        Self {
+            force_sw_volume: false,
+            cap_percent: 100,
+        }
+    }
+}
+
+impl Config {
+    #[allow(dead_code)]
+    pub fn resolve_device<'a>(&'a self, device_id: &str) -> &'a DeviceConfig {
+        self.device.get(device_id).unwrap_or(&self.default)
+    }
+
+    pub fn path() -> std::path::PathBuf {
+        if let Ok(p) = std::env::var("WINSOFTVOL_CONFIG") {
+            return std::path::PathBuf::from(p);
+        }
+        #[cfg(windows)]
+        {
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                return std::path::Path::new(&appdata)
+                    .join("WinSoftVol")
+                    .join("config.toml");
+            }
+        }
+        // Fallback: exe directory
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.join("config.toml")))
+            .unwrap_or_else(|| std::path::PathBuf::from("config.toml"))
+    }
+
+    pub fn load() -> Self {
+        let path = Self::path();
+        if !path.exists() {
+            #[cfg(windows)]
+            {
+                if let Some(migrated) = Self::migrate_from_registry() {
+                    return migrated;
+                }
+            }
+            return Self::default();
+        }
+        match std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!(e))
+            .and_then(|s| toml::from_str(&s).map_err(|e| anyhow::anyhow!(e)))
+        {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!("config load error: {e}");
+                Self::default()
+            }
+        }
+    }
+
+    pub fn try_load() -> anyhow::Result<Self> {
+        let path = Self::path();
+        let content = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        toml::from_str(&content).map_err(|e| anyhow::anyhow!(e))
+    }
+
+    pub fn save(&self) -> anyhow::Result<()> {
+        let path = Self::path();
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let content = toml::to_string_pretty(self)?;
+        let tmp = path.with_extension("toml.tmp");
+        std::fs::write(&tmp, &content)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(())
+    }
+
+    #[cfg(windows)]
+    fn migrate_from_registry() -> Option<Self> {
+        use winreg::{enums::*, RegKey};
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let app_key = hkcu.open_subkey(r"Software\WinSoftVol").ok()?;
+
+        let force_sw: u32 = app_key.get_value("ForceSwVolume").unwrap_or(0);
+        let cap: u32 = app_key
+            .get_value::<u32, _>("VolumeCapPercent")
+            .unwrap_or(100)
+            .clamp(10, 100);
+        let autostart = hkcu
+            .open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run")
+            .and_then(|k| k.get_value::<String, _>("WinSoftVol"))
+            .is_ok();
+
+        let cfg = Self {
+            general: GeneralConfig { autostart },
+            default: DeviceConfig {
+                force_sw_volume: force_sw != 0,
+                cap_percent: cap,
+            },
+            device: HashMap::new(),
+        };
+
+        if let Err(e) = cfg.save() {
+            eprintln!("config migration save error: {e}");
+            return None;
+        }
+
+        // Remove old registry values (best-effort)
+        let _ = hkcu.delete_subkey_all(r"Software\WinSoftVol");
+
+        Some(cfg)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_has_sane_values() {
+        let cfg = Config::default();
+        assert!(!cfg.general.autostart);
+        assert!(!cfg.default.force_sw_volume);
+        assert_eq!(cfg.default.cap_percent, 100);
+        assert!(cfg.device.is_empty());
+    }
+
+    #[test]
+    fn parse_minimal_toml() {
+        let toml = r#"
+[general]
+autostart = false
+
+[default]
+force_sw_volume = false
+cap_percent = 100
+"#;
+        let cfg: Config = toml::from_str(toml).unwrap();
+        assert!(!cfg.general.autostart);
+        assert_eq!(cfg.default.cap_percent, 100);
+    }
+
+    #[test]
+    fn parse_empty_toml_uses_defaults() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert!(!cfg.general.autostart);
+        assert_eq!(cfg.default.cap_percent, 100);
+    }
+
+    #[test]
+    fn parse_device_section() {
+        let toml = r#"
+[device."USB Audio {GUID}"]
+force_sw_volume = true
+cap_percent = 80
+"#;
+        let cfg: Config = toml::from_str(toml).unwrap();
+        let dev = cfg.device.get("USB Audio {GUID}").unwrap();
+        assert!(dev.force_sw_volume);
+        assert_eq!(dev.cap_percent, 80);
+    }
+
+    #[test]
+    fn resolve_device_returns_device_specific_when_present() {
+        let toml = r#"
+[default]
+force_sw_volume = false
+cap_percent = 100
+
+[device."my-device"]
+force_sw_volume = true
+cap_percent = 60
+"#;
+        let cfg: Config = toml::from_str(toml).unwrap();
+        let resolved = cfg.resolve_device("my-device");
+        assert!(resolved.force_sw_volume);
+        assert_eq!(resolved.cap_percent, 60);
+    }
+
+    #[test]
+    fn resolve_device_falls_back_to_default() {
+        let cfg = Config::default();
+        let resolved = cfg.resolve_device("unknown-device-id");
+        assert_eq!(resolved.cap_percent, 100);
+        assert!(!resolved.force_sw_volume);
+    }
+
+    #[test]
+    fn roundtrip_serialize_deserialize() {
+        let mut cfg = Config::default();
+        cfg.general.autostart = true;
+        cfg.default.cap_percent = 80;
+        cfg.device.insert(
+            "test-device".to_string(),
+            DeviceConfig {
+                force_sw_volume: true,
+                cap_percent: 60,
+            },
+        );
+        let serialized = toml::to_string_pretty(&cfg).unwrap();
+        let deserialized: Config = toml::from_str(&serialized).unwrap();
+        assert_eq!(deserialized.general.autostart, cfg.general.autostart);
+        assert_eq!(deserialized.default.cap_percent, cfg.default.cap_percent);
+        let dev = deserialized.device.get("test-device").unwrap();
+        assert!(dev.force_sw_volume);
+        assert_eq!(dev.cap_percent, 60);
+    }
+
+    #[test]
+    fn path_uses_env_var_when_set() {
+        std::env::set_var("WINSOFTVOL_CONFIG", "/tmp/custom/config.toml");
+        let p = Config::path();
+        std::env::remove_var("WINSOFTVOL_CONFIG");
+        assert_eq!(p, std::path::PathBuf::from("/tmp/custom/config.toml"));
+    }
+
+    #[test]
+    fn save_and_load_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        std::env::set_var("WINSOFTVOL_CONFIG", path.to_str().unwrap());
+
+        let mut cfg = Config::default();
+        cfg.general.autostart = true;
+        cfg.default.cap_percent = 60;
+        cfg.save().unwrap();
+
+        let loaded = Config::load();
+        std::env::remove_var("WINSOFTVOL_CONFIG");
+
+        assert_eq!(loaded.general.autostart, true);
+        assert_eq!(loaded.default.cap_percent, 60);
+    }
+}

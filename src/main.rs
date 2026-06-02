@@ -6,13 +6,10 @@ mod about;
 mod audio;
 #[cfg(windows)]
 mod autostart;
+mod config;
 #[cfg(windows)]
 mod notification;
-#[cfg(windows)]
-mod softvol;
 mod tray;
-#[cfg(windows)]
-mod volcap;
 
 #[cfg(windows)]
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -58,7 +55,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    use std::sync::{atomic::AtomicU32, Arc};
+    use std::sync::{atomic::AtomicU32, Arc, RwLock};
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
@@ -69,17 +66,25 @@ fn run() -> anyhow::Result<()> {
 
     notification::register_aumid();
 
-    let softvol_flag = Arc::new(AtomicBool::new(softvol::is_enabled()));
-    let cap_flag = Arc::new(AtomicU32::new(volcap::get()));
+    let initial_cfg = config::Config::load();
+    let softvol_flag = Arc::new(AtomicBool::new(initial_cfg.default.force_sw_volume));
+    let cap_flag = Arc::new(AtomicU32::new(initial_cfg.default.cap_percent));
+    let tray_state = tray::build_tray(
+        initial_cfg.general.autostart,
+        initial_cfg.default.force_sw_volume,
+        initial_cfg.default.cap_percent,
+    )?;
+    let cfg_state = Arc::new(RwLock::new(initial_cfg));
+
+    // Track config file mtime to detect external edits for hot-reload
+    let mut last_config_mtime: Option<std::time::SystemTime> =
+        std::fs::metadata(config::Config::path())
+            .ok()
+            .and_then(|m| m.modified().ok());
 
     let watcher = audio::DeviceWatcher::new()?;
     let mut bridge: Option<audio::AudioBridge> =
         audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
-    let tray_state = tray::build_tray(
-        autostart::is_enabled(),
-        softvol::is_enabled(),
-        volcap::get(),
-    )?;
 
     let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0)? };
 
@@ -118,7 +123,7 @@ fn run() -> anyhow::Result<()> {
             }
         }
 
-        // Check for exclusive mode once per timer tick (1 s)
+        // Timer tick: exclusive mode check + config hot-reload
         if msg.message == windows::Win32::UI::WindowsAndMessaging::WM_TIMER {
             if let Some(ref b) = bridge {
                 let exclusive = b.check_exclusive_mode();
@@ -128,6 +133,39 @@ fn run() -> anyhow::Result<()> {
                 } else if !exclusive && exclusive_mode_active {
                     exclusive_mode_active = false;
                     notification::show_exclusive_mode_ended();
+                }
+            }
+
+            // Hot-reload config when file changes externally
+            let cfg_path = config::Config::path();
+            if let Ok(meta) = std::fs::metadata(&cfg_path) {
+                if let Ok(mtime) = meta.modified() {
+                    let now = std::time::SystemTime::now();
+                    let age = now.duration_since(mtime).unwrap_or_default();
+                    // Only reload if file changed since last load and has settled (>500ms)
+                    if Some(mtime) != last_config_mtime
+                        && age >= std::time::Duration::from_millis(500)
+                    {
+                        last_config_mtime = Some(mtime);
+                        match config::Config::try_load() {
+                            Ok(new_cfg) => {
+                                softvol_flag
+                                    .store(new_cfg.default.force_sw_volume, Ordering::Relaxed);
+                                cap_flag.store(new_cfg.default.cap_percent, Ordering::Relaxed);
+                                tray_state.set_softvol(new_cfg.default.force_sw_volume);
+                                tray_state.set_volcap(new_cfg.default.cap_percent);
+                                let old_autostart = cfg_state.read().unwrap().general.autostart;
+                                if new_cfg.general.autostart != old_autostart {
+                                    let _ = autostart::set(new_cfg.general.autostart);
+                                    tray_state.set_autostart(new_cfg.general.autostart);
+                                }
+                                *cfg_state.write().unwrap() = new_cfg;
+                            }
+                            Err(e) => {
+                                notification::show_config_error(&e.to_string());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -174,22 +212,31 @@ fn run() -> anyhow::Result<()> {
                 }
                 return Ok(());
             } else if event.id() == &tray_state.autostart_id {
-                let new_state = !autostart::is_enabled();
+                let new_state = !cfg_state.read().unwrap().general.autostart;
                 if let Err(e) = autostart::set(new_state) {
                     eprintln!("autostart error: {e}");
                 }
+                {
+                    let mut cfg = cfg_state.write().unwrap();
+                    cfg.general.autostart = new_state;
+                    let _ = cfg.save();
+                }
             } else if event.id() == &tray_state.softvol_id {
-                let new_state = !softvol::is_enabled();
+                let new_state = !softvol_flag.load(Ordering::Relaxed);
                 softvol_flag.store(new_state, Ordering::Relaxed);
-                if let Err(e) = softvol::set(new_state) {
-                    eprintln!("softvol error: {e}");
+                {
+                    let mut cfg = cfg_state.write().unwrap();
+                    cfg.default.force_sw_volume = new_state;
+                    let _ = cfg.save();
                 }
             } else {
                 for (id, pct) in &tray_state.volcap_ids {
                     if event.id() == id {
                         cap_flag.store(*pct, Ordering::Relaxed);
-                        if let Err(e) = volcap::set(*pct) {
-                            eprintln!("volcap error: {e}");
+                        {
+                            let mut cfg = cfg_state.write().unwrap();
+                            cfg.default.cap_percent = *pct;
+                            let _ = cfg.save();
                         }
                         tray_state.set_volcap(*pct);
                         break;

@@ -26,6 +26,13 @@ pub fn show_device_reconnected() {
     let _ = toast(TITLE_APP, MSG_RECONNECTED);
 }
 
+pub fn show_config_error(msg: &str) {
+    let truncated: String = msg.chars().take(200).collect();
+    let body =
+        format!("config.toml: {truncated}\nPrevious settings kept. Fix the file to apply changes.");
+    let _ = toast("WinSoftVol — Config Error", &body);
+}
+
 pub fn show_exclusive_mode_active() {
     let _ = toast(TITLE_EXCLUSIVE, MSG_EXCLUSIVE_START);
 }
