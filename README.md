@@ -5,7 +5,8 @@
 
   <p>🔊 Software volume control for USB audio devices on Windows.</p>
 
-  <br><h1>⚒️ WinSoftVol ⚒️</h1>
+<br><h1>⚒️ WinSoftVol ⚒️</h1>
+
 </div>
 
 <p align="center">
@@ -67,10 +68,15 @@ WinSoftVol fixes this. It sits in the system tray, watches the endpoint for chan
 
 - 🎚️ Intercepts system volume changes (taskbar slider, keyboard volume keys, mute button) and applies them to all audio sessions as software volume.
 - 🖥️ System tray icon — unobtrusive, always available, zero UI overhead.
-- 🔌 Automatic re-plug detection — reconnecting the USB device restores control within one second.
+- 🔌 Automatic re-plug detection — reconnecting the USB device restores control within one second, confirmed by a toast notification.
 - 🚀 Autostart on Windows startup via the registry Run key, toggled from the tray menu.
 - 🔇 Force software volume mode — disables hardware volume on capable devices, routing all attenuation through the session mixer for cleaner, step-free control.
-- ℹ️  About dialog with version, build commit hash, and build timestamp.
+- 🔒 Volume cap — sets a ceiling on maximum output (100% / 80% / 60% / 40%) so the full slider range stays usable while preventing any app from blasting past the limit.
+- 🖱️ Scroll wheel on tray icon — adjust volume up/down 2% per notch without touching the taskbar.
+- 🔕 Left-click tray icon — instantly toggle mute/unmute.
+- 🔊 Dynamic tray icon — volume bar overlaid on the icon updates in real time; bar turns red when muted.
+- ⚠️ Exclusive mode detection — detects when a game or DAW bypasses the session mixer and notifies you why volume control stops working for that app.
+- ℹ️ About dialog with version, build commit hash, and build timestamp.
 - 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
 
 ## 💼 Requirements
@@ -89,20 +95,29 @@ No installer. No admin rights required. Single executable.
 
 Right-click the tray icon to open the menu.
 
-| Menu Item | Effect |
-|---|---|
-| About WinSoftVol | Shows version, build info, and description |
-| Start on Windows startup | Toggles autostart (registry Run key) |
-| Force software volume | Routes all volume control through the session mixer; disables hardware attenuation on capable devices |
-| Quit WinSoftVol | Exits cleanly |
+| Menu Item                | Effect                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| About WinSoftVol         | Shows version, build info, and description                                                                               |
+| Start on Windows startup | Toggles autostart (registry Run key)                                                                                     |
+| Force software volume    | Routes all volume control through the session mixer; disables hardware attenuation on capable devices                    |
+| Max volume               | Sets a ceiling on output: 100% / 80% / 60% / 40% of full scale — the slider still covers 0–100% but is scaled to the cap |
+| Quit WinSoftVol          | Exits cleanly                                                                                                            |
+
+Tray icon also responds to direct interaction:
+
+| Action            | Effect                          |
+| ----------------- | ------------------------------- |
+| Left-click        | Toggle mute / unmute            |
+| Scroll wheel up   | Increase volume by 2% per notch |
+| Scroll wheel down | Decrease volume by 2% per notch |
 
 Once running, use Windows volume controls normally:
 
-| Control | Effect |
-|---|---|
-| Taskbar volume slider | Adjusts volume for all audio sessions |
-| Keyboard volume up/down keys | Same |
-| Keyboard mute key | Mutes / unmutes all audio sessions |
+| Control                      | Effect                                |
+| ---------------------------- | ------------------------------------- |
+| Taskbar volume slider        | Adjusts volume for all audio sessions |
+| Keyboard volume up/down keys | Same                                  |
+| Keyboard mute key            | Mutes / unmutes all audio sessions    |
 
 ## 🌍 Platform Notes
 
@@ -118,12 +133,21 @@ Windows exposes audio through the Core Audio API. Each device has an **endpoint 
 
 On normal hardware, Windows writes the endpoint volume and the driver applies it. On devices without a Feature Unit, the driver ignores the endpoint level entirely.
 
+Windows audio output is a product of two levels:
+
+```
+output = session_volume (per-app mixer) × endpoint_volume (system slider) × audio_content
+```
+
+On normal hardware the driver applies both. On USB devices without a hardware Feature Unit the driver ignores the endpoint level entirely, making the system slider ineffective. WinSoftVol bridges the gap by moving attenuation into the session layer where software always applies it.
+
 WinSoftVol:
 
 1. Registers `IAudioEndpointVolumeCallback` on the default render device. Every time the endpoint level changes (slider, key press), `OnNotify` fires on the COM STA thread.
-2. Inside `OnNotify`, enumerates all active audio sessions via `IAudioSessionManager2` and sets each session's master volume and mute to match the endpoint level.
-3. Registers `IAudioSessionNotification` so applications started after WinSoftVol are picked up automatically.
-4. Registers `IMMNotificationClient` to detect device plug/unplug events and reinitialise the bridge within one second.
+2. Inside `OnNotify`, reads each audio session's current volume via `IAudioSessionManager2` and scales it proportionally by `(new_level / old_level)` — preserving any per-app balance the user set in the Windows Volume Mixer.
+3. Registers `IAudioSessionNotification` so applications started after WinSoftVol are initialised at the correct volume automatically.
+4. Registers `IMMNotificationClient` to detect device plug/unplug events and reinitialise the bridge within one second, confirmed by a toast notification.
+5. Polls `IAudioMeterInformation` once per second to detect when a game or DAW takes WASAPI exclusive mode (bypassing the session mixer) and notifies the user.
 
 ## 🛠️ Building
 
