@@ -16,6 +16,7 @@ pub struct Tray {
     pub autostart_id: MenuId,
     pub softvol_id: MenuId,
     pub volcap_ids: Vec<(MenuId, u32)>,
+    volcap_items: Vec<CheckMenuItem>,
     pub quit_id: MenuId,
 }
 
@@ -72,6 +73,7 @@ pub fn build_tray(
         autostart_id,
         softvol_id,
         volcap_ids,
+        volcap_items,
         quit_id,
     })
 }
@@ -107,5 +109,11 @@ impl Tray {
     pub fn update_icon(&self, icon: tray_icon::Icon) -> anyhow::Result<()> {
         self._icon.set_icon(Some(icon))?;
         Ok(())
+    }
+
+    pub fn set_volcap(&self, pct: u32) {
+        for (item, &(item_pct, _)) in self.volcap_items.iter().zip(VOLCAP_PRESETS.iter()) {
+            item.set_checked(item_pct == pct);
+        }
     }
 }

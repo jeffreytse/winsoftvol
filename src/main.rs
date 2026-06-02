@@ -191,6 +191,7 @@ fn run() -> anyhow::Result<()> {
                         if let Err(e) = volcap::set(*pct) {
                             eprintln!("volcap error: {e}");
                         }
+                        tray_state.set_volcap(*pct);
                         break;
                     }
                 }
