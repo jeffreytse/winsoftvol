@@ -93,6 +93,11 @@ impl AudioBridge {
         })
     }
 
+    pub fn current_volume(&self) -> (f32, bool) {
+        let s = self.state.lock().unwrap();
+        (s.volume, s.muted)
+    }
+
     pub fn adjust_volume(&self, delta: f32) -> Result<()> {
         if self.softvol.load(Ordering::Relaxed) {
             let (old_vol, new_vol, muted) = {

@@ -83,6 +83,7 @@ fn run() -> anyhow::Result<()> {
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
+    let mut last_display: Option<(u32, bool)> = None;
     let mut msg = MSG::default();
     loop {
         unsafe {
@@ -98,6 +99,19 @@ fn run() -> anyhow::Result<()> {
         if scroll != 0 {
             if let Some(ref b) = bridge {
                 let _ = b.adjust_volume(scroll as f32 * 0.02);
+            }
+        }
+
+        // Update tray icon when volume or mute state changes
+        if let Some(ref b) = bridge {
+            let (vol, muted) = b.current_volume();
+            let pct = (vol * 100.0).round() as u32;
+            let display = (pct, muted);
+            if Some(display) != last_display {
+                last_display = Some(display);
+                if let Ok(icon) = tray::render_volume_icon(vol, muted) {
+                    let _ = tray_state.update_icon(icon);
+                }
             }
         }
 

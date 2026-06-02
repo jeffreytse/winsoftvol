@@ -75,3 +75,37 @@ pub fn build_tray(
         quit_id,
     })
 }
+
+/// Renders a 32×32 icon with a volume bar overlaid on the bottom 4 rows.
+/// Bar is white when active, red when muted.
+pub fn render_volume_icon(volume: f32, muted: bool) -> anyhow::Result<tray_icon::Icon> {
+    const SIZE: u32 = 32;
+    const BAR_H: u32 = 4;
+
+    let base = image::load_from_memory(ICON)?.into_rgba8();
+    let mut img = image::imageops::resize(&base, SIZE, SIZE, image::imageops::FilterType::Triangle);
+
+    let filled = ((volume.clamp(0.0, 1.0) * SIZE as f32).round() as u32).min(SIZE);
+    let bar_color = if muted {
+        image::Rgba([210u8, 60, 60, 255])
+    } else {
+        image::Rgba([255u8, 255u8, 255u8, 230])
+    };
+    let track_color = image::Rgba([0u8, 0u8, 0u8, 120]);
+
+    for y in (SIZE - BAR_H)..SIZE {
+        for x in 0..SIZE {
+            img.put_pixel(x, y, if x < filled { bar_color } else { track_color });
+        }
+    }
+
+    let (w, h) = img.dimensions();
+    Ok(tray_icon::Icon::from_rgba(img.into_raw(), w, h)?)
+}
+
+impl Tray {
+    pub fn update_icon(&self, icon: tray_icon::Icon) -> anyhow::Result<()> {
+        self._icon.set_icon(Some(icon))?;
+        Ok(())
+    }
+}
