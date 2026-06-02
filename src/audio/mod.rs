@@ -8,7 +8,7 @@ use device::get_default_device;
 pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
-use session_mgr::{scale_all_sessions_volume, set_all_sessions_volume};
+use session_mgr::{scale_all_sessions_volume, set_all_sessions_mute, set_all_sessions_volume};
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, Ordering},
@@ -110,6 +110,23 @@ impl AudioBridge {
             unsafe {
                 self.endpoint_volume
                     .SetMasterVolumeLevelScalar(new_vol, std::ptr::null())?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn toggle_mute(&self) -> Result<()> {
+        if self.softvol.load(Ordering::Relaxed) {
+            let muted = {
+                let mut s = self.state.lock().unwrap();
+                s.muted = !s.muted;
+                s.muted
+            };
+            set_all_sessions_mute(&self.session_manager, muted)?;
+        } else {
+            let current = unsafe { self.endpoint_volume.GetMute()?.as_bool() };
+            unsafe {
+                self.endpoint_volume.SetMute(!current, std::ptr::null())?;
             }
         }
         Ok(())

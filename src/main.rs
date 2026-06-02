@@ -108,6 +108,15 @@ fn run() -> anyhow::Result<()> {
 
         while let Ok(event) = tray_icon::TrayIconEvent::receiver().try_recv() {
             match event {
+                tray_icon::TrayIconEvent::Click {
+                    button: tray_icon::MouseButton::Left,
+                    button_state: tray_icon::MouseButtonState::Up,
+                    ..
+                } => {
+                    if let Some(ref b) = bridge {
+                        let _ = b.toggle_mute();
+                    }
+                }
                 tray_icon::TrayIconEvent::Enter { .. } => {
                     CURSOR_OVER_TRAY.store(true, Ordering::Relaxed);
                 }

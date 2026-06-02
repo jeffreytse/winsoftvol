@@ -28,6 +28,24 @@ pub fn set_all_sessions_volume(
     Ok(())
 }
 
+/// Mutes or unmutes every session without touching per-app volume levels.
+pub fn set_all_sessions_mute(
+    session_manager: &IAudioSessionManager2,
+    muted: bool,
+) -> Result<()> {
+    let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
+    let count = unsafe { enumerator.GetCount()? };
+    for i in 0..count {
+        let session = unsafe { enumerator.GetSession(i)? };
+        if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
+            unsafe {
+                let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Scales each session proportionally by (new_volume / old_volume), clamped to cap.
 /// Preserves per-app volume balance set in Windows Volume Mixer.
 pub fn scale_all_sessions_volume(
