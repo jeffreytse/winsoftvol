@@ -72,9 +72,10 @@ pub fn scale_all_sessions_volume(
         let session = unsafe { enumerator.GetSession(i)? };
         if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
             unsafe {
-                let cur = vol.GetMasterVolume().unwrap_or(new_volume);
-                let scaled = scale_volume(cur, old_volume, new_volume, cap);
-                let _ = vol.SetMasterVolume(scaled, std::ptr::null());
+                if let Ok(cur) = vol.GetMasterVolume() {
+                    let scaled = scale_volume(cur, old_volume, new_volume, cap);
+                    let _ = vol.SetMasterVolume(scaled, std::ptr::null());
+                }
                 let _ = vol.SetMute(BOOL::from(muted), std::ptr::null());
             }
         }
