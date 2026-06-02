@@ -33,15 +33,13 @@ unsafe extern "system" fn mouse_hook_proc(
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, HHOOK, MSLLHOOKSTRUCT, WM_MOUSEWHEEL,
     };
-    if code >= 0 && wparam.0 as u32 == WM_MOUSEWHEEL {
-        if CURSOR_OVER_TRAY.load(Ordering::Relaxed) {
-            let data = &*(lparam.0 as *const MSLLHOOKSTRUCT);
-            let delta = (data.mouseData >> 16) as i16;
-            if delta > 0 {
-                PENDING_SCROLL.fetch_add(1, Ordering::Relaxed);
-            } else {
-                PENDING_SCROLL.fetch_sub(1, Ordering::Relaxed);
-            }
+    if code >= 0 && wparam.0 as u32 == WM_MOUSEWHEEL && CURSOR_OVER_TRAY.load(Ordering::Relaxed) {
+        let data = &*(lparam.0 as *const MSLLHOOKSTRUCT);
+        let delta = (data.mouseData >> 16) as i16;
+        if delta > 0 {
+            PENDING_SCROLL.fetch_add(1, Ordering::Relaxed);
+        } else {
+            PENDING_SCROLL.fetch_sub(1, Ordering::Relaxed);
         }
     }
     CallNextHookEx(HHOOK::default(), code, wparam, lparam)
