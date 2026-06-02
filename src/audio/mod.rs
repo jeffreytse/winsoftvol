@@ -45,6 +45,10 @@ pub struct AudioBridge {
     cap: Arc<AtomicU32>,
 }
 
+fn apply_delta(old: f32, delta: f32) -> f32 {
+    (old + delta).clamp(0.0, 1.0)
+}
+
 impl AudioBridge {
     pub fn new(softvol: Arc<AtomicBool>, cap: Arc<AtomicU32>) -> Result<Self> {
         let state = Arc::new(Mutex::new(VolumeState {
@@ -137,7 +141,7 @@ impl AudioBridge {
             let (old_vol, new_vol, muted) = {
                 let mut s = self.state.lock().unwrap();
                 let old = s.volume;
-                let new = (old + delta).clamp(0.0, 1.0);
+                let new = apply_delta(old, delta);
                 s.volume = new;
                 (old, new, s.muted)
             };
@@ -145,7 +149,7 @@ impl AudioBridge {
             scale_all_sessions_volume(&self.session_manager, old_vol, new_vol, muted, cap)?;
         } else {
             let current = unsafe { self.endpoint_volume.GetMasterVolumeLevelScalar()? };
-            let new_vol = (current + delta).clamp(0.0, 1.0);
+            let new_vol = apply_delta(current, delta);
             unsafe {
                 self.endpoint_volume
                     .SetMasterVolumeLevelScalar(new_vol, std::ptr::null())?;
@@ -187,7 +191,7 @@ impl Drop for AudioBridge {
 
 #[cfg(test)]
 mod tests {
-    use super::VolumeState;
+    use super::{apply_delta, VolumeState};
 
     #[test]
     fn volume_state_defaults() {
@@ -197,5 +201,30 @@ mod tests {
         };
         assert!((s.volume - 1.0).abs() < f32::EPSILON);
         assert!(!s.muted);
+    }
+
+    #[test]
+    fn delta_normal_increase() {
+        assert!((apply_delta(0.5, 0.2) - 0.7).abs() < 1e-5);
+    }
+
+    #[test]
+    fn delta_clamps_at_one() {
+        assert!((apply_delta(0.9, 0.5) - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn delta_clamps_at_zero() {
+        assert!((apply_delta(0.05, -0.1) - 0.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn delta_zero_unchanged() {
+        assert!((apply_delta(0.6, 0.0) - 0.6).abs() < 1e-5);
+    }
+
+    #[test]
+    fn delta_negative_decrease() {
+        assert!((apply_delta(0.8, -0.3) - 0.5).abs() < 1e-5);
     }
 }

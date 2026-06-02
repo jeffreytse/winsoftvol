@@ -74,16 +74,23 @@ pub fn build_tray(
     })
 }
 
+fn bar_filled_px(volume: f32, size: u32) -> u32 {
+    ((volume.clamp(0.0, 1.0) * size as f32).round() as u32).min(size)
+}
+
+const ICON_SIZE: u32 = 32;
+const BAR_HEIGHT: u32 = 4;
+
 /// Renders a 32×32 icon with a volume bar overlaid on the bottom 4 rows.
 /// Bar is white when active, red when muted.
 pub fn render_volume_icon(volume: f32, muted: bool) -> anyhow::Result<tray_icon::Icon> {
-    const SIZE: u32 = 32;
-    const BAR_H: u32 = 4;
+    const SIZE: u32 = ICON_SIZE;
+    const BAR_H: u32 = BAR_HEIGHT;
 
     let base = image::load_from_memory(ICON)?.into_rgba8();
     let mut img = image::imageops::resize(&base, SIZE, SIZE, image::imageops::FilterType::Triangle);
 
-    let filled = ((volume.clamp(0.0, 1.0) * SIZE as f32).round() as u32).min(SIZE);
+    let filled = bar_filled_px(volume, SIZE);
     let bar_color = if muted {
         image::Rgba([210u8, 60, 60, 255])
     } else {
@@ -110,6 +117,99 @@ impl Tray {
     pub fn set_volcap(&self, pct: u32) {
         for (item, &(item_pct, _)) in self.volcap_items.iter().zip(VOLCAP_PRESETS.iter()) {
             item.set_checked(item_pct == pct);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{bar_filled_px, VOLCAP_PRESETS};
+
+    #[test]
+    fn bar_zero_volume() {
+        assert_eq!(bar_filled_px(0.0, 32), 0);
+    }
+
+    #[test]
+    fn bar_full_volume() {
+        assert_eq!(bar_filled_px(1.0, 32), 32);
+    }
+
+    #[test]
+    fn bar_half_volume() {
+        assert_eq!(bar_filled_px(0.5, 32), 16);
+    }
+
+    #[test]
+    fn bar_over_one_clamped() {
+        assert_eq!(bar_filled_px(2.0, 32), 32);
+    }
+
+    #[test]
+    fn bar_negative_clamped() {
+        assert_eq!(bar_filled_px(-0.5, 32), 0);
+    }
+
+    #[test]
+    fn render_volume_icon_smoke() {
+        assert!(super::render_volume_icon(0.0, false).is_ok());
+        assert!(super::render_volume_icon(0.75, true).is_ok());
+        assert!(super::render_volume_icon(1.0, false).is_ok());
+    }
+
+    #[test]
+    fn icon_size_is_32() {
+        assert_eq!(super::ICON_SIZE, 32);
+    }
+
+    #[test]
+    fn bar_height_is_4() {
+        assert_eq!(super::BAR_HEIGHT, 4);
+    }
+
+    #[test]
+    fn bar_height_less_than_icon_size() {
+        assert!(super::BAR_HEIGHT < super::ICON_SIZE);
+    }
+
+    #[test]
+    fn volcap_presets_count() {
+        assert_eq!(VOLCAP_PRESETS.len(), 4);
+    }
+
+    #[test]
+    fn volcap_presets_descending_order() {
+        let pcts: Vec<u32> = VOLCAP_PRESETS.iter().map(|&(p, _)| p).collect();
+        for w in pcts.windows(2) {
+            assert!(
+                w[0] > w[1],
+                "presets must be descending: {} <= {}",
+                w[0],
+                w[1]
+            );
+        }
+    }
+
+    #[test]
+    fn volcap_presets_labels_match_percent() {
+        for &(pct, label) in VOLCAP_PRESETS {
+            assert_eq!(label, format!("{}%", pct), "label mismatch for {pct}");
+        }
+    }
+
+    #[test]
+    fn volcap_presets_values_in_valid_range() {
+        for &(pct, _) in VOLCAP_PRESETS {
+            assert!((10..=100).contains(&pct), "{pct} out of valid range");
+        }
+    }
+
+    #[test]
+    fn volcap_presets_no_duplicates() {
+        let pcts: Vec<u32> = VOLCAP_PRESETS.iter().map(|&(p, _)| p).collect();
+        let mut seen = std::collections::HashSet::new();
+        for p in pcts {
+            assert!(seen.insert(p), "duplicate preset: {p}");
         }
     }
 }

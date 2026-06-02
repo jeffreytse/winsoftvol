@@ -75,3 +75,31 @@ impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::OUR_EVENT_CONTEXT;
+
+    #[test]
+    fn our_event_context_guid_data1() {
+        assert_eq!(OUR_EVENT_CONTEXT.data1, 0xd4c1e5f2);
+    }
+
+    #[test]
+    fn our_event_context_guid_data2() {
+        assert_eq!(OUR_EVENT_CONTEXT.data2, 0x8a3b);
+    }
+
+    #[test]
+    fn our_event_context_guid_data3() {
+        assert_eq!(OUR_EVENT_CONTEXT.data3, 0x4d7c);
+    }
+
+    #[test]
+    fn our_event_context_guid_data4() {
+        assert_eq!(
+            OUR_EVENT_CONTEXT.data4,
+            [0x9e, 0x1a, 0x2b, 0x3c, 0x4d, 0x5e, 0x6f, 0x70]
+        );
+    }
+}

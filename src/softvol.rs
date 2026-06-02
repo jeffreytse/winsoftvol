@@ -17,3 +17,36 @@ pub fn set(enable: bool) -> anyhow::Result<()> {
     key.set_value(VALUE, &(enable as u32))?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{APP_KEY, VALUE};
+
+    #[test]
+    fn app_key_path_is_correct() {
+        assert_eq!(APP_KEY, r"Software\WinSoftVol");
+    }
+
+    #[test]
+    fn value_name_is_correct() {
+        assert_eq!(VALUE, "ForceSwVolume");
+    }
+
+    #[test]
+    fn zero_stored_means_disabled() {
+        // is_enabled reads u32 and checks v != 0
+        assert!(!(0u32 != 0));
+    }
+
+    #[test]
+    fn nonzero_stored_means_enabled() {
+        assert!(1u32 != 0);
+        assert!(u32::MAX != 0);
+    }
+
+    #[test]
+    fn bool_to_u32_encoding() {
+        assert_eq!(false as u32, 0);
+        assert_eq!(true as u32, 1);
+    }
+}

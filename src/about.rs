@@ -1,3 +1,7 @@
+fn null_terminated_utf16(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(Some(0)).collect()
+}
+
 #[cfg(windows)]
 pub fn show_about() {
     use windows::{
@@ -17,8 +21,8 @@ pub fn show_about() {
         env!("BUILD_TIME"),
     );
 
-    let text_w: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
-    let title_w: Vec<u16> = "About WinSoftVol\0".encode_utf16().collect();
+    let text_w = null_terminated_utf16(&text);
+    let title_w = null_terminated_utf16("About WinSoftVol");
 
     unsafe {
         MessageBoxW(
@@ -27,5 +31,42 @@ pub fn show_about() {
             PCWSTR(title_w.as_ptr()),
             MB_OK | MB_ICONINFORMATION,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::null_terminated_utf16;
+
+    #[test]
+    fn null_terminated_ends_with_zero() {
+        let v = null_terminated_utf16("hello");
+        assert_eq!(*v.last().unwrap(), 0u16);
+    }
+
+    #[test]
+    fn null_terminated_length_is_chars_plus_one() {
+        let s = "WinSoftVol";
+        let v = null_terminated_utf16(s);
+        assert_eq!(v.len(), s.len() + 1);
+    }
+
+    #[test]
+    fn null_terminated_empty_string() {
+        let v = null_terminated_utf16("");
+        assert_eq!(v, vec![0u16]);
+    }
+
+    #[test]
+    fn null_terminated_ascii_encodes_correctly() {
+        let v = null_terminated_utf16("A");
+        assert_eq!(v, vec![65u16, 0u16]);
+    }
+
+    #[test]
+    fn null_terminated_no_interior_nulls_for_ascii() {
+        let v = null_terminated_utf16("hello");
+        // only the trailing null
+        assert_eq!(v[..v.len() - 1].iter().filter(|&&c| c == 0).count(), 0);
     }
 }
