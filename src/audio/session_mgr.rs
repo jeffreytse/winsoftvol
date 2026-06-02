@@ -7,6 +7,7 @@ use windows::{
 };
 
 /// Sets every session to the same absolute volume. Used for initial sync and new sessions.
+#[allow(dead_code)]
 pub fn set_all_sessions_volume(
     session_manager: &IAudioSessionManager2,
     volume: f32,

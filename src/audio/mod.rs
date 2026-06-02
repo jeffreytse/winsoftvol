@@ -8,7 +8,7 @@ use device::get_default_device;
 pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
-use session_mgr::{scale_all_sessions_volume, set_all_sessions_mute, set_all_sessions_volume};
+use session_mgr::{scale_all_sessions_volume, set_all_sessions_mute};
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, Ordering},
@@ -57,6 +57,7 @@ impl AudioBridge {
         let session_manager: IAudioSessionManager2 = unsafe { device.Activate(CLSCTX_ALL, None)? };
         let session_cb: IAudioSessionNotification = SessionNotificationHandler {
             state: state.clone(),
+            cap: cap.clone(),
         }
         .into();
         unsafe { session_manager.RegisterSessionNotification(&session_cb)? };
@@ -81,8 +82,9 @@ impl AudioBridge {
             s.volume = init_vol;
             s.muted = init_muted;
         }
-        let init_cap = cap.load(Ordering::Relaxed) as f32 / 100.0;
-        set_all_sessions_volume(&session_manager, init_vol, init_muted, init_cap)?;
+        // Do not overwrite existing session volumes on startup — preserve any
+        // per-app levels the user set in the Windows Volume Mixer. Sessions will
+        // be scaled proportionally on the first slider/key change via OnNotify.
 
         Ok(Self {
             _device: device,
