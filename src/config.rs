@@ -33,10 +33,23 @@ impl Default for DeviceConfig {
     }
 }
 
+impl DeviceConfig {
+    fn sanitize(&mut self) {
+        self.cap_percent = self.cap_percent.clamp(10, 100);
+    }
+}
+
 impl Config {
     #[allow(dead_code)]
     pub fn resolve_device<'a>(&'a self, device_id: &str) -> &'a DeviceConfig {
         self.device.get(device_id).unwrap_or(&self.default)
+    }
+
+    fn sanitize_devices(&mut self) {
+        self.default.sanitize();
+        for dev in self.device.values_mut() {
+            dev.sanitize();
+        }
     }
 
     pub fn path() -> std::path::PathBuf {
@@ -71,9 +84,12 @@ impl Config {
         }
         match std::fs::read_to_string(&path)
             .map_err(|e| anyhow::anyhow!(e))
-            .and_then(|s| toml::from_str(&s).map_err(|e| anyhow::anyhow!(e)))
+            .and_then(|s| toml::from_str::<Self>(&s).map_err(|e| anyhow::anyhow!(e)))
         {
-            Ok(cfg) => cfg,
+            Ok(mut cfg) => {
+                cfg.sanitize_devices();
+                cfg
+            }
             Err(e) => {
                 eprintln!("config load error: {e}");
                 Self::default()
@@ -85,7 +101,12 @@ impl Config {
         let path = Self::path();
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
-        toml::from_str(&content).map_err(|e| anyhow::anyhow!(e))
+        toml::from_str(&content)
+            .map_err(|e| anyhow::anyhow!(e))
+            .map(|mut c: Self| {
+                c.sanitize_devices();
+                c
+            })
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
@@ -230,6 +251,40 @@ cap_percent = 60
         let dev = deserialized.device.get("test-device").unwrap();
         assert!(dev.force_sw_volume);
         assert_eq!(dev.cap_percent, 60);
+    }
+
+    #[test]
+    fn cap_percent_zero_clamped_to_10_on_load() {
+        let toml = "[default]\nforce_sw_volume = false\ncap_percent = 0\n";
+        let cfg: Config = toml::from_str(toml).unwrap();
+        // raw parse accepts 0; sanitize via load path
+        let mut cfg2 = cfg;
+        cfg2.sanitize_devices();
+        assert_eq!(cfg2.default.cap_percent, 10);
+    }
+
+    #[test]
+    fn cap_percent_over_100_clamped_on_load() {
+        let toml = "[default]\nforce_sw_volume = false\ncap_percent = 150\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.default.cap_percent, 100);
+    }
+
+    #[test]
+    fn cap_percent_valid_unchanged_on_sanitize() {
+        let toml = "[default]\nforce_sw_volume = false\ncap_percent = 80\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.default.cap_percent, 80);
+    }
+
+    #[test]
+    fn cap_percent_device_override_clamped() {
+        let toml = "[device.\"my-dev\"]\nforce_sw_volume = false\ncap_percent = 0\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.device["my-dev"].cap_percent, 10);
     }
 
     #[test]
