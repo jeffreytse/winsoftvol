@@ -40,6 +40,7 @@
     <a href="#-usage">Usage</a> |
     <a href="#-platform-notes">Platforms</a> |
     <a href="#%EF%B8%8F-how-it-works">How It Works</a> |
+    <a href="#-configuration">Config</a> |
     <a href="#%EF%B8%8F-building">Build</a> |
     <a href="#-license">License</a>
   </h4>
@@ -72,11 +73,12 @@ WinSoftVol fixes this. It sits in the system tray, watches the endpoint for chan
 - 🚀 Autostart on Windows startup via the registry Run key, toggled from the tray menu.
 - 🔇 Force software volume mode — disables hardware volume on capable devices, routing all attenuation through the session mixer for cleaner, step-free control.
 - 🔒 Volume cap — sets a ceiling on maximum output (100% / 80% / 60% / 40%) so the full slider range stays usable while preventing any app from blasting past the limit.
+- ⚙️ Config file with hot-reload — persistent settings in `%APPDATA%\WinSoftVol\config.toml`; changes apply immediately without restarting.
 - 🖱️ Scroll wheel on tray icon — adjust volume up/down 2% per notch without touching the taskbar.
 - 🔕 Left-click tray icon — instantly toggle mute/unmute.
 - 🔊 Dynamic tray icon — volume bar overlaid on the icon updates in real time; bar turns red when muted.
 - ⚠️ Exclusive mode detection — detects when a game or DAW bypasses the session mixer and notifies you why volume control stops working for that app.
-- ℹ️ About dialog with version, build commit hash, and build timestamp.
+- ℹ️ About dialog with version, build commit hash, build timestamp, and links to the project homepage and GitHub Sponsors.
 - 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
 
 ## 💼 Requirements
@@ -148,6 +150,33 @@ WinSoftVol:
 3. Registers `IAudioSessionNotification` so applications started after WinSoftVol are initialised at the correct volume automatically.
 4. Registers `IMMNotificationClient` to detect device plug/unplug events and reinitialise the bridge within one second, confirmed by a toast notification.
 5. Polls `IAudioMeterInformation` once per second to detect when a game or DAW takes WASAPI exclusive mode (bypassing the session mixer) and notifies the user.
+
+## 📝 Configuration
+
+WinSoftVol reads `%APPDATA%\WinSoftVol\config.toml` on startup and reloads it automatically when the file changes — no restart required.
+
+**Example `config.toml`:**
+
+```toml
+[general]
+autostart = false
+
+[default]
+force_sw_volume = false
+cap_percent = 80
+
+[device."USB Audio Device {GUID}"]
+cap_percent = 60
+```
+
+| Key | Default | Description |
+| --- | ------- | ----------- |
+| `general.autostart` | `false` | Launch at Windows startup |
+| `default.force_sw_volume` | `false` | Force software volume mode |
+| `default.cap_percent` | `100` | Volume ceiling in % (10–100) |
+| `device."<id>".*` | — | Per-device overrides (same keys as `[default]`) |
+
+Device IDs match the Windows audio endpoint ID string shown in the device properties. Per-device settings take precedence over `[default]` when the matching device is active.
 
 ## 🛠️ Building
 
