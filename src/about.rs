@@ -52,7 +52,7 @@ unsafe extern "system" fn hyperlink_callback(
 }
 
 #[cfg(windows)]
-pub fn show_about() {
+pub fn show_about(latest_version: Option<&str>) {
     use std::mem::size_of;
     use windows::{
         core::PCWSTR,
@@ -71,8 +71,15 @@ pub fn show_about() {
     const HOMEPAGE: &str = "https://github.com/jeffreytse/winsoftvol";
     const SPONSOR: &str = "https://github.com/sponsors/jeffreytse";
 
+    let update_line = latest_version
+        .map(|tag| {
+            let url = format!("https://github.com/jeffreytse/winsoftvol/releases/tag/{tag}");
+            format!("\n\n<a href=\"{url}\">\u{1F195} New version {tag} available \u{2014} click to download</a>")
+        })
+        .unwrap_or_default();
+
     let content = format!(
-        "v{} ({})\n{}\n\nAuthor:  {}\nBuilt:   {}\n\n<a href=\"{HOMEPAGE}\">Project Homepage</a>\n\nIf you find WinSoftVol useful, please consider supporting its development.\n<a href=\"{SPONSOR}\">Sponsor on GitHub \u{2665}</a>",
+        "v{} ({})\n{}\n\nAuthor:  {}\nBuilt:   {}\n\n<a href=\"{HOMEPAGE}\">Project Homepage</a>\n\nIf you find WinSoftVol useful, please consider supporting its development.\n<a href=\"{SPONSOR}\">Sponsor on GitHub \u{2665}</a>{update_line}",
         env!("CARGO_PKG_VERSION"),
         env!("GIT_HASH"),
         env!("CARGO_PKG_DESCRIPTION"),

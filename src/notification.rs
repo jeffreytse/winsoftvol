@@ -48,11 +48,22 @@ fn build_toast_xml(title: &str, body: &str) -> String {
 }
 
 fn toast(title: &str, body: &str) -> Result<()> {
+    toast_xml(&build_toast_xml(title, body))
+}
+
+fn toast_xml(xml_str: &str) -> Result<()> {
     let xml = XmlDocument::new()?;
-    xml.LoadXml(&HSTRING::from(build_toast_xml(title, body)))?;
+    xml.LoadXml(&HSTRING::from(xml_str))?;
     let notif = ToastNotification::CreateToastNotification(&xml)?;
     ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(AUMID))?.Show(&notif)?;
     Ok(())
+}
+
+pub fn show_update_available(tag: &str, url: &str) {
+    let xml = format!(
+        "<toast launch=\"{url}\" activationType=\"protocol\" duration=\"short\"><visual><binding template=\"ToastGeneric\"><text>WinSoftVol Update Available</text><text>{tag} is ready \u{2014} click to open release page</text></binding></visual></toast>"
+    );
+    let _ = toast_xml(&xml);
 }
 
 #[cfg(test)]

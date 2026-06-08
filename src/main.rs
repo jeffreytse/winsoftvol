@@ -10,6 +10,8 @@ mod config;
 #[cfg(windows)]
 mod notification;
 mod tray;
+#[cfg(windows)]
+mod updater;
 
 #[cfg(windows)]
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
@@ -55,7 +57,7 @@ fn main() -> anyhow::Result<()> {
 
 #[cfg(windows)]
 fn run() -> anyhow::Result<()> {
-    use std::sync::{atomic::AtomicU32, Arc, RwLock};
+    use std::sync::{atomic::AtomicU32, Arc, Mutex, RwLock};
     use windows::Win32::{
         Foundation::HWND,
         UI::WindowsAndMessaging::{
@@ -65,6 +67,9 @@ fn run() -> anyhow::Result<()> {
     };
 
     notification::register_aumid();
+
+    let update_state: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    updater::spawn_update_checker(Arc::clone(&update_state));
 
     let initial_cfg = config::Config::load();
     let softvol_flag = Arc::new(AtomicBool::new(initial_cfg.default.force_sw_volume));
@@ -92,6 +97,7 @@ fn run() -> anyhow::Result<()> {
 
     let mut last_display: Option<(u32, bool)> = None;
     let mut exclusive_mode_active = false;
+    let mut update_notified = false;
     let mut msg = MSG::default();
     loop {
         unsafe {
@@ -133,6 +139,16 @@ fn run() -> anyhow::Result<()> {
                 } else if !exclusive && exclusive_mode_active {
                     exclusive_mode_active = false;
                     notification::show_exclusive_mode_ended();
+                }
+            }
+
+            // Notify once when a new version is detected
+            if !update_notified {
+                if let Some(tag) = update_state.lock().unwrap().clone() {
+                    update_notified = true;
+                    let url =
+                        format!("https://github.com/jeffreytse/winsoftvol/releases/tag/{tag}");
+                    notification::show_update_available(&tag, &url);
                 }
             }
 
@@ -201,7 +217,8 @@ fn run() -> anyhow::Result<()> {
 
         while let Ok(event) = muda::MenuEvent::receiver().try_recv() {
             if event.id() == &tray_state.about_id {
-                about::show_about();
+                let latest = update_state.lock().unwrap().clone();
+                about::show_about(latest.as_deref());
             } else if event.id() == &tray_state.quit_id {
                 unsafe {
                     let _ = KillTimer(HWND(0), 1);
