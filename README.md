@@ -74,11 +74,12 @@ WinSoftVol fixes this. It sits in the system tray, watches the endpoint for chan
 - 🔇 Force software volume mode — disables hardware volume on capable devices, routing all attenuation through the session mixer for cleaner, step-free control.
 - 🔒 Volume cap — sets a ceiling on maximum output (100% / 80% / 60% / 40%) so the full slider range stays usable while preventing any app from blasting past the limit.
 - ⚙️ Config file with hot-reload — persistent settings in `%APPDATA%\WinSoftVol\config.toml`; changes apply immediately without restarting.
+- 🔔 Auto-update check — checks GitHub for new releases on startup; fires a clickable toast notification that opens the release page when a newer version is found.
 - 🖱️ Scroll wheel on tray icon — adjust volume up/down 2% per notch without touching the taskbar.
 - 🔕 Left-click tray icon — instantly toggle mute/unmute.
 - 🔊 Dynamic tray icon — volume bar overlaid on the icon updates in real time; bar turns red when muted.
 - ⚠️ Exclusive mode detection — detects when a game or DAW bypasses the session mixer and notifies you why volume control stops working for that app.
-- ℹ️ About dialog with version, build commit hash, build timestamp, and links to the project homepage and GitHub Sponsors.
+- ℹ️ About dialog with version, build commit hash, build timestamp, links to the project homepage and GitHub Sponsors, and a download link when a newer version is available.
 - 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
 
 ## 💼 Requirements
@@ -99,7 +100,7 @@ Right-click the tray icon to open the menu.
 
 | Menu Item                | Effect                                                                                                                   |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| About WinSoftVol         | Shows version, build info, and description                                                                               |
+| About WinSoftVol         | Shows version, build info, links, and a download link if a newer version is available                                    |
 | Start on Windows startup | Toggles autostart (registry Run key)                                                                                     |
 | Force software volume    | Routes all volume control through the session mixer; disables hardware attenuation on capable devices                    |
 | Max volume               | Sets a ceiling on output: 100% / 80% / 60% / 40% of full scale — the slider still covers 0–100% but is scaled to the cap |
