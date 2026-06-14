@@ -3,8 +3,6 @@ use tray_icon::{TrayIcon, TrayIconBuilder};
 
 const ICON: &[u8] = include_bytes!("../assets/icon.png");
 
-pub const VOLCAP_PRESETS: &[(u32, &str)] = &[(100, "100%"), (80, "80%"), (60, "60%"), (40, "40%")];
-
 pub struct Tray {
     _icon: TrayIcon,
     pub about_id: MenuId,
@@ -21,6 +19,7 @@ pub fn build_tray(
     autostart_enabled: bool,
     softvol_enabled: bool,
     volcap_percent: u32,
+    cap_presets: &[u32],
 ) -> anyhow::Result<Tray> {
     let about_item = MenuItem::new("About WinSoftVol", true, None);
     let autostart_item =
@@ -33,11 +32,12 @@ pub fn build_tray(
     let softvol_id = softvol_item.id().clone();
     let quit_id = quit_item.id().clone();
 
-    // Max volume submenu
+    // Max volume submenu — built from config presets
     let mut volcap_items: Vec<CheckMenuItem> = Vec::new();
     let mut volcap_ids: Vec<(MenuId, u32)> = Vec::new();
-    for &(pct, label) in VOLCAP_PRESETS {
-        let item = CheckMenuItem::new(label, true, pct == volcap_percent, None);
+    for &pct in cap_presets {
+        let label = format!("{pct}%");
+        let item = CheckMenuItem::new(&label, true, pct == volcap_percent, None);
         volcap_ids.push((item.id().clone(), pct));
         volcap_items.push(item);
     }
@@ -124,7 +124,7 @@ impl Tray {
 
     #[allow(dead_code)]
     pub fn set_volcap(&self, pct: u32) {
-        for (item, &(item_pct, _)) in self.volcap_items.iter().zip(VOLCAP_PRESETS.iter()) {
+        for (item, &(_, item_pct)) in self.volcap_items.iter().zip(self.volcap_ids.iter()) {
             item.set_checked(item_pct == pct);
         }
     }
@@ -142,7 +142,7 @@ impl Tray {
 
 #[cfg(test)]
 mod tests {
-    use super::{bar_filled_px, VOLCAP_PRESETS};
+    use super::bar_filled_px;
 
     #[test]
     fn bar_zero_volume() {
@@ -191,44 +191,4 @@ mod tests {
         assert!(super::BAR_HEIGHT < super::ICON_SIZE);
     }
 
-    #[test]
-    fn volcap_presets_count() {
-        assert_eq!(VOLCAP_PRESETS.len(), 4);
-    }
-
-    #[test]
-    fn volcap_presets_descending_order() {
-        let pcts: Vec<u32> = VOLCAP_PRESETS.iter().map(|&(p, _)| p).collect();
-        for w in pcts.windows(2) {
-            assert!(
-                w[0] > w[1],
-                "presets must be descending: {} <= {}",
-                w[0],
-                w[1]
-            );
-        }
-    }
-
-    #[test]
-    fn volcap_presets_labels_match_percent() {
-        for &(pct, label) in VOLCAP_PRESETS {
-            assert_eq!(label, format!("{}%", pct), "label mismatch for {pct}");
-        }
-    }
-
-    #[test]
-    fn volcap_presets_values_in_valid_range() {
-        for &(pct, _) in VOLCAP_PRESETS {
-            assert!((10..=100).contains(&pct), "{pct} out of valid range");
-        }
-    }
-
-    #[test]
-    fn volcap_presets_no_duplicates() {
-        let pcts: Vec<u32> = VOLCAP_PRESETS.iter().map(|&(p, _)| p).collect();
-        let mut seen = std::collections::HashSet::new();
-        for p in pcts {
-            assert!(seen.insert(p), "duplicate preset: {p}");
-        }
-    }
 }

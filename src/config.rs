@@ -13,9 +13,41 @@ pub struct Config {
     pub device: HashMap<String, DeviceConfig>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+fn default_cap_presets() -> Vec<u32> {
+    vec![100, 80, 60, 40]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
+    #[serde(default)]
     pub autostart: bool,
+    #[serde(default = "default_cap_presets")]
+    pub cap_presets: Vec<u32>,
+}
+
+impl Default for GeneralConfig {
+    fn default() -> Self {
+        Self {
+            autostart: false,
+            cap_presets: default_cap_presets(),
+        }
+    }
+}
+
+impl GeneralConfig {
+    fn sanitize(&mut self) {
+        let mut seen = std::collections::HashSet::new();
+        self.cap_presets = self
+            .cap_presets
+            .iter()
+            .map(|&p| p.clamp(10, 100))
+            .filter(|p| seen.insert(*p))
+            .collect();
+        self.cap_presets.sort_unstable_by(|a, b| b.cmp(a));
+        if self.cap_presets.is_empty() {
+            self.cap_presets = default_cap_presets();
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +78,7 @@ impl Config {
     }
 
     fn sanitize_devices(&mut self) {
+        self.general.sanitize();
         self.default.sanitize();
         for dev in self.device.values_mut() {
             dev.sanitize();
@@ -139,7 +172,10 @@ impl Config {
             .is_ok();
 
         let cfg = Self {
-            general: GeneralConfig { autostart },
+            general: GeneralConfig {
+                autostart,
+                cap_presets: default_cap_presets(),
+            },
             default: DeviceConfig {
                 force_sw_volume: force_sw != 0,
                 cap_percent: cap,
@@ -170,6 +206,58 @@ mod tests {
         assert!(!cfg.default.force_sw_volume);
         assert_eq!(cfg.default.cap_percent, 100);
         assert!(cfg.device.is_empty());
+        assert_eq!(cfg.general.cap_presets, vec![100, 80, 60, 40]);
+    }
+
+    #[test]
+    fn default_cap_presets_are_descending() {
+        let presets = default_cap_presets();
+        for w in presets.windows(2) {
+            assert!(w[0] > w[1]);
+        }
+    }
+
+    #[test]
+    fn default_cap_presets_in_valid_range() {
+        for p in default_cap_presets() {
+            assert!((10..=100).contains(&p));
+        }
+    }
+
+    #[test]
+    fn cap_presets_missing_from_toml_uses_default() {
+        let cfg: Config = toml::from_str("[general]\nautostart = false\n").unwrap();
+        assert_eq!(cfg.general.cap_presets, default_cap_presets());
+    }
+
+    #[test]
+    fn cap_presets_sanitize_clamps_and_deduplicates() {
+        let mut g = GeneralConfig {
+            autostart: false,
+            cap_presets: vec![120, 100, 50, 50, 5],
+        };
+        g.sanitize();
+        assert_eq!(g.cap_presets, vec![100, 50, 10]);
+    }
+
+    #[test]
+    fn cap_presets_sanitize_empty_restores_default() {
+        let mut g = GeneralConfig {
+            autostart: false,
+            cap_presets: vec![],
+        };
+        g.sanitize();
+        assert_eq!(g.cap_presets, default_cap_presets());
+    }
+
+    #[test]
+    fn cap_presets_sanitize_sorts_descending() {
+        let mut g = GeneralConfig {
+            autostart: false,
+            cap_presets: vec![40, 100, 60],
+        };
+        g.sanitize();
+        assert_eq!(g.cap_presets, vec![100, 60, 40]);
     }
 
     #[test]

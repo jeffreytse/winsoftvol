@@ -78,6 +78,7 @@ fn run() -> anyhow::Result<()> {
         initial_cfg.general.autostart,
         initial_cfg.default.force_sw_volume,
         initial_cfg.default.cap_percent,
+        &initial_cfg.general.cap_presets,
     )?;
     let cfg_state = Arc::new(RwLock::new(initial_cfg));
 
