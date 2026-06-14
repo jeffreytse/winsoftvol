@@ -10,10 +10,12 @@ pub struct Tray {
     pub softvol_id: MenuId,
     pub night_id: MenuId,
     pub volcap_ids: Vec<(MenuId, u32)>,
+    pub startup_vol_ids: Vec<(MenuId, Option<u32>)>,
     autostart_item: CheckMenuItem,
     softvol_item: CheckMenuItem,
     night_item: CheckMenuItem,
     volcap_items: Vec<CheckMenuItem>,
+    startup_vol_items: Vec<CheckMenuItem>,
     pub quit_id: MenuId,
 }
 
@@ -23,6 +25,7 @@ pub fn build_tray(
     night_enabled: bool,
     volcap_percent: u32,
     cap_presets: &[u32],
+    startup_volume: Option<u32>,
 ) -> anyhow::Result<Tray> {
     let about_item = MenuItem::new("About WinSoftVol", true, None);
     let autostart_item =
@@ -50,6 +53,20 @@ pub fn build_tray(
         volcap_items.iter().map(|i| i as &dyn IsMenuItem).collect();
     let volcap_submenu = Submenu::with_items("Max volume", true, &volcap_dyn)?;
 
+    // Startup volume submenu — "Off" + same presets as cap
+    let off_item = CheckMenuItem::new("Off", true, startup_volume.is_none(), None);
+    let mut startup_vol_ids: Vec<(MenuId, Option<u32>)> = vec![(off_item.id().clone(), None)];
+    let mut startup_vol_items: Vec<CheckMenuItem> = vec![off_item];
+    for &pct in cap_presets {
+        let label = format!("{pct}%");
+        let item = CheckMenuItem::new(&label, true, startup_volume == Some(pct), None);
+        startup_vol_ids.push((item.id().clone(), Some(pct)));
+        startup_vol_items.push(item);
+    }
+    let sv_dyn: Vec<&dyn IsMenuItem> =
+        startup_vol_items.iter().map(|i| i as &dyn IsMenuItem).collect();
+    let sv_submenu = Submenu::with_items("Startup volume", true, &sv_dyn)?;
+
     let menu = Menu::new();
     menu.append(&about_item)?;
     menu.append(&PredefinedMenuItem::separator())?;
@@ -57,6 +74,7 @@ pub fn build_tray(
     menu.append(&softvol_item)?;
     menu.append(&night_item)?;
     menu.append(&volcap_submenu)?;
+    menu.append(&sv_submenu)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit_item)?;
 
@@ -78,10 +96,12 @@ pub fn build_tray(
         softvol_id,
         night_id,
         volcap_ids,
+        startup_vol_ids,
         autostart_item,
         softvol_item,
         night_item,
         volcap_items,
+        startup_vol_items,
         quit_id,
     })
 }
@@ -145,6 +165,13 @@ impl Tray {
     #[allow(dead_code)]
     pub fn set_night(&self, enabled: bool) {
         self.night_item.set_checked(enabled);
+    }
+
+    #[allow(dead_code)]
+    pub fn set_startup_vol(&self, vol: Option<u32>) {
+        for (item, (_, item_vol)) in self.startup_vol_items.iter().zip(self.startup_vol_ids.iter()) {
+            item.set_checked(*item_vol == vol);
+        }
     }
 
     #[allow(dead_code)]

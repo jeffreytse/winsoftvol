@@ -163,6 +163,20 @@ impl AudioBridge {
         cap_all_sessions_volume(&self.session_manager, cap)
     }
 
+    pub fn set_volume(&self, vol: f32) -> Result<()> {
+        let vol = vol.clamp(0.0, 1.0);
+        if self.softvol.load(Ordering::Relaxed) {
+            let (current, _) = self.current_volume();
+            self.adjust_volume(vol - current)
+        } else {
+            unsafe {
+                self.endpoint_volume
+                    .SetMasterVolumeLevelScalar(vol, std::ptr::null())?;
+            }
+            Ok(())
+        }
+    }
+
     pub fn toggle_mute(&self) -> Result<()> {
         if self.softvol.load(Ordering::Relaxed) {
             let muted = {

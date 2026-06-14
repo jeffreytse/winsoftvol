@@ -88,6 +88,7 @@ fn run() -> anyhow::Result<()> {
         initial_cfg.general.night_enabled,
         initial_cfg.default.cap_percent,
         &initial_cfg.general.cap_presets,
+        initial_cfg.general.startup_volume,
     )?;
     let cfg_state = Arc::new(RwLock::new(initial_cfg));
 
@@ -100,6 +101,12 @@ fn run() -> anyhow::Result<()> {
     let watcher = audio::DeviceWatcher::new()?;
     let mut bridge: Option<audio::AudioBridge> =
         audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+
+    if let Some(ref b) = bridge {
+        if let Some(vol) = cfg_state.read().unwrap().general.startup_volume {
+            let _ = b.set_volume(vol as f32 / 100.0);
+        }
+    }
 
     let hook = unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0)? };
 
@@ -227,6 +234,7 @@ fn run() -> anyhow::Result<()> {
                                 tray_state.set_softvol(new_cfg.default.force_sw_volume);
                                 tray_state.set_volcap(new_cfg.default.cap_percent);
                                 tray_state.set_night(new_cfg.general.night_enabled);
+                                tray_state.set_startup_vol(new_cfg.general.startup_volume);
                                 in_night_mode = false;
                                 let old_autostart = cfg_state.read().unwrap().general.autostart;
                                 if new_cfg.general.autostart != old_autostart {
@@ -321,6 +329,7 @@ fn run() -> anyhow::Result<()> {
                     }
                 }
             } else {
+                let mut handled = false;
                 for (id, pct) in &tray_state.volcap_ids {
                     if event.id() == id {
                         cap_flag.store(*pct, Ordering::Relaxed);
@@ -333,7 +342,21 @@ fn run() -> anyhow::Result<()> {
                             let _ = cfg.save();
                         }
                         tray_state.set_volcap(*pct);
+                        handled = true;
                         break;
+                    }
+                }
+                if !handled {
+                    for (id, vol) in &tray_state.startup_vol_ids {
+                        if event.id() == id {
+                            {
+                                let mut cfg = cfg_state.write().unwrap();
+                                cfg.general.startup_volume = *vol;
+                                let _ = cfg.save();
+                            }
+                            tray_state.set_startup_vol(*vol);
+                            break;
+                        }
                     }
                 }
             }

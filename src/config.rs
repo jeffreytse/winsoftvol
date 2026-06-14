@@ -55,6 +55,8 @@ pub struct GeneralConfig {
     pub night_cap: u32,
     #[serde(default = "default_true")]
     pub night_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub startup_volume: Option<u32>,
 }
 
 impl Default for GeneralConfig {
@@ -67,6 +69,7 @@ impl Default for GeneralConfig {
             night_end: None,
             night_cap: default_night_cap(),
             night_enabled: true,
+            startup_volume: None,
         }
     }
 }
@@ -86,6 +89,9 @@ impl GeneralConfig {
         }
         self.scroll_step_percent = self.scroll_step_percent.clamp(1, 20);
         self.night_cap = self.night_cap.clamp(10, 100);
+        if let Some(v) = &mut self.startup_volume {
+            *v = (*v).clamp(0, 100);
+        }
     }
 
     pub fn night_window_minutes(&self) -> Option<(u32, u32)> {
@@ -228,6 +234,7 @@ impl Config {
                 night_end: None,
                 night_cap: default_night_cap(),
                 night_enabled: true,
+                startup_volume: None,
             },
             default: DeviceConfig {
                 force_sw_volume: force_sw != 0,
@@ -483,6 +490,36 @@ cap_percent = 60
         cfg.night_start = Some("22:00".to_string());
         cfg.night_end = Some("07:00".to_string());
         assert_eq!(cfg.night_window_minutes(), Some((22 * 60, 7 * 60)));
+    }
+
+    #[test]
+    fn startup_volume_missing_from_toml_is_none() {
+        let cfg: Config = toml::from_str("[general]\nautostart = false\n").unwrap();
+        assert!(cfg.general.startup_volume.is_none());
+    }
+
+    #[test]
+    fn startup_volume_present_and_valid_unchanged() {
+        let toml = "[general]\nstartup_volume = 50\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.general.startup_volume, Some(50));
+    }
+
+    #[test]
+    fn startup_volume_over_100_clamped() {
+        let toml = "[general]\nstartup_volume = 150\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.general.startup_volume, Some(100));
+    }
+
+    #[test]
+    fn startup_volume_zero_is_valid() {
+        let toml = "[general]\nstartup_volume = 0\n";
+        let mut cfg: Config = toml::from_str(toml).unwrap();
+        cfg.sanitize_devices();
+        assert_eq!(cfg.general.startup_volume, Some(0));
     }
 
     #[test]
