@@ -56,7 +56,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[cfg(windows)]
-fn active_device_config<'a>(cfg: &'a config::Config) -> &'a config::DeviceConfig {
+fn active_device_config(cfg: &config::Config) -> &config::DeviceConfig {
     cfg.general
         .pin_device
         .as_deref()
@@ -111,7 +111,8 @@ fn run() -> anyhow::Result<()> {
     let watcher = audio::DeviceWatcher::new()?;
     let mut bridge: Option<audio::AudioBridge> = {
         let pin = cfg_state.read().unwrap().general.pin_device.clone();
-        let b = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref()).ok();
+        let b =
+            audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref()).ok();
         if b.is_none() {
             if let Some(ref name) = pin {
                 notification::show_device_not_found(name);
@@ -242,8 +243,7 @@ fn run() -> anyhow::Result<()> {
                         match config::Config::try_load() {
                             Ok(new_cfg) => {
                                 let dev_cfg = active_device_config(&new_cfg);
-                                softvol_flag
-                                    .store(dev_cfg.force_sw_volume, Ordering::Relaxed);
+                                softvol_flag.store(dev_cfg.force_sw_volume, Ordering::Relaxed);
                                 cap_flag.store(dev_cfg.cap_percent, Ordering::Relaxed);
                                 scroll_step
                                     .store(new_cfg.general.scroll_step_percent, Ordering::Relaxed);
@@ -274,7 +274,9 @@ fn run() -> anyhow::Result<()> {
         if watcher.check() {
             drop(bridge.take());
             let pin = cfg_state.read().unwrap().general.pin_device.clone();
-            bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref()).ok();
+            bridge =
+                audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref())
+                    .ok();
             if bridge.is_some() {
                 notification::show_device_reconnected();
             } else if let Some(ref name) = pin {

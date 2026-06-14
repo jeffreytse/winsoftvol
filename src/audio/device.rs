@@ -32,8 +32,11 @@ use super::device_cb::DeviceChangeNotifier;
 pub fn get_device_by_name(name: &str) -> Option<IMMDevice> {
     let enumerator: IMMDeviceEnumerator =
         unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()? };
-    let collection =
-        unsafe { enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE).ok()? };
+    let collection = unsafe {
+        enumerator
+            .EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE)
+            .ok()?
+    };
     let count = unsafe { collection.GetCount().ok()? };
     for i in 0..count {
         let device = unsafe { collection.Item(i).ok()? };

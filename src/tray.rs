@@ -63,8 +63,10 @@ pub fn build_tray(
         startup_vol_ids.push((item.id().clone(), Some(pct)));
         startup_vol_items.push(item);
     }
-    let sv_dyn: Vec<&dyn IsMenuItem> =
-        startup_vol_items.iter().map(|i| i as &dyn IsMenuItem).collect();
+    let sv_dyn: Vec<&dyn IsMenuItem> = startup_vol_items
+        .iter()
+        .map(|i| i as &dyn IsMenuItem)
+        .collect();
     let sv_submenu = Submenu::with_items("Startup volume", true, &sv_dyn)?;
 
     let menu = Menu::new();
@@ -169,7 +171,11 @@ impl Tray {
 
     #[allow(dead_code)]
     pub fn set_startup_vol(&self, vol: Option<u32>) {
-        for (item, (_, item_vol)) in self.startup_vol_items.iter().zip(self.startup_vol_ids.iter()) {
+        for (item, (_, item_vol)) in self
+            .startup_vol_items
+            .iter()
+            .zip(self.startup_vol_ids.iter())
+        {
             item.set_checked(*item_vol == vol);
         }
     }
@@ -230,5 +236,4 @@ mod tests {
     fn bar_height_less_than_icon_size() {
         assert!(super::BAR_HEIGHT < super::ICON_SIZE);
     }
-
 }

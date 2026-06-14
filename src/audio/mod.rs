@@ -4,8 +4,8 @@ mod endpoint_cb;
 mod session_cb;
 pub mod session_mgr;
 
-use device::{get_default_device, get_device_by_name};
 pub use device::DeviceWatcher;
+use device::{get_default_device, get_device_by_name};
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
 use session_mgr::{cap_all_sessions_volume, scale_all_sessions_volume, set_all_sessions_mute};
@@ -50,15 +50,20 @@ fn apply_delta(old: f32, delta: f32) -> f32 {
 }
 
 impl AudioBridge {
-    pub fn new(softvol: Arc<AtomicBool>, cap: Arc<AtomicU32>, pin_device: Option<&str>) -> Result<Self> {
+    pub fn new(
+        softvol: Arc<AtomicBool>,
+        cap: Arc<AtomicU32>,
+        pin_device: Option<&str>,
+    ) -> Result<Self> {
         let state = Arc::new(Mutex::new(VolumeState {
             volume: 1.0,
             muted: false,
         }));
 
         let device = match pin_device {
-            Some(name) => get_device_by_name(name)
-                .ok_or_else(|| windows::core::Error::new(windows::core::HRESULT(-1i32), "".into()))?,
+            Some(name) => get_device_by_name(name).ok_or_else(|| {
+                windows::core::Error::new(windows::core::HRESULT(-1i32), "".into())
+            })?,
             None => get_default_device()?,
         };
         let meter: IAudioMeterInformation = unsafe { device.Activate(CLSCTX_ALL, None)? };

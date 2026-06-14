@@ -163,7 +163,11 @@ mod tests {
 
     // cap_all_sessions_volume logic tests (pure math, no COM)
     fn cap_session(cur: f32, cap: f32) -> f32 {
-        if cur > cap { cap } else { cur }
+        if cur > cap {
+            cap
+        } else {
+            cur
+        }
     }
 
     #[test]
