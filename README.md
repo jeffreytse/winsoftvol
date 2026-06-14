@@ -72,12 +72,15 @@ WinSoftVol fixes this. It sits in the system tray, watches the endpoint for chan
 - 🔌 Automatic re-plug detection — reconnecting the USB device restores control within one second, confirmed by a toast notification.
 - 🚀 Autostart on Windows startup via the registry Run key, toggled from the tray menu.
 - 🔇 Force software volume mode — disables hardware volume on capable devices, routing all attenuation through the session mixer for cleaner, step-free control.
-- 🔒 Volume cap — sets a ceiling on maximum output (100% / 80% / 60% / 40%) so the full slider range stays usable while preventing any app from blasting past the limit.
+- 🔒 Volume cap — configurable ceiling on maximum output; presets defined in `config.toml` and selectable from the tray menu.
+- 🌙 Night mode — automatically lowers the volume cap on a configurable schedule (e.g. 22:00–07:00); toggled from the tray menu without editing the config file.
+- 🔈 Startup volume — optionally set a fixed volume level on every launch, regardless of what Windows last had; selectable from the tray menu.
+- 📌 Device pinning — lock WinSoftVol to a specific audio device by friendly name; falls back to the default device with a notification if the pinned device is absent.
 - ⚙️ Config file with hot-reload — persistent settings in `%APPDATA%\WinSoftVol\config.toml`; changes apply immediately without restarting.
 - 🔔 Auto-update check — checks GitHub for new releases on startup; fires a clickable toast notification that opens the release page when a newer version is found.
-- 🖱️ Scroll wheel on tray icon — adjust volume up/down 2% per notch without touching the taskbar.
+- 🖱️ Scroll wheel on tray icon — adjust volume up/down per notch without touching the taskbar; step size configurable via `scroll_step_percent`.
 - 🔕 Left-click tray icon — instantly toggle mute/unmute.
-- 🔊 Dynamic tray icon — volume bar overlaid on the icon updates in real time; bar turns red when muted.
+- 🔊 Dynamic tray icon — volume bar overlaid on the icon updates in real time; bar turns red when muted; tooltip shows current volume percentage and active cap.
 - ⚠️ Exclusive mode detection — detects when a game or DAW bypasses the session mixer and notifies you why volume control stops working for that app.
 - ℹ️ About dialog with version, build commit hash, build timestamp, links to the project homepage and GitHub Sponsors, and a download link when a newer version is available.
 - 🦀 Written in Rust — small binary, no runtime, minimal resource usage.
@@ -98,21 +101,24 @@ No installer. No admin rights required. Single executable.
 
 Right-click the tray icon to open the menu.
 
-| Menu Item                | Effect                                                                                                                   |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| About WinSoftVol         | Shows version, build info, links, and a download link if a newer version is available                                    |
-| Start on Windows startup | Toggles autostart (registry Run key)                                                                                     |
-| Force software volume    | Routes all volume control through the session mixer; disables hardware attenuation on capable devices                    |
-| Max volume               | Sets a ceiling on output: 100% / 80% / 60% / 40% of full scale — the slider still covers 0–100% but is scaled to the cap |
-| Quit WinSoftVol          | Exits cleanly                                                                                                            |
+| Menu Item                | Effect                                                                                                                        |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| About WinSoftVol         | Shows version, build info, links, and a download link if a newer version is available                                         |
+| Start on Windows startup | Toggles autostart (registry Run key)                                                                                          |
+| Force software volume    | Routes all volume control through the session mixer; disables hardware attenuation on capable devices                         |
+| Night mode               | Enables or disables the scheduled cap reduction; saved to config immediately                                                  |
+| Max volume               | Sets a ceiling on output — presets are configurable in `config.toml`; the slider still covers 0–100% but is scaled to the cap |
+| Startup volume           | Sets the volume applied on the next launch (Off = leave unchanged); saved to config immediately                               |
+| Quit WinSoftVol          | Exits cleanly                                                                                                                 |
 
 Tray icon also responds to direct interaction:
 
-| Action            | Effect                          |
-| ----------------- | ------------------------------- |
-| Left-click        | Toggle mute / unmute            |
-| Scroll wheel up   | Increase volume by 2% per notch |
-| Scroll wheel down | Decrease volume by 2% per notch |
+| Action            | Effect                                                    |
+| ----------------- | --------------------------------------------------------- |
+| Left-click        | Toggle mute / unmute                                      |
+| Scroll wheel up   | Increase volume by `scroll_step_percent`% per notch (default 2%) |
+| Scroll wheel down | Decrease volume by `scroll_step_percent`% per notch       |
+| Hover             | Tooltip shows current volume % and active cap             |
 
 Once running, use Windows volume controls normally:
 
@@ -160,24 +166,44 @@ WinSoftVol reads `%APPDATA%\WinSoftVol\config.toml` on startup and reloads it au
 
 ```toml
 [general]
-autostart = false
+autostart            = false
+cap_presets          = [100, 80, 60, 40]   # presets shown in tray Max volume submenu
+scroll_step_percent  = 2                   # % per scroll notch (1–20)
+startup_volume       = 50                  # set to 50% on launch; omit to leave unchanged
+pin_device           = "Speakers (USB Audio Device)"  # omit to use Windows default device
+
+# Night mode: lower cap automatically on a schedule
+night_start          = "22:00"
+night_end            = "07:00"
+night_cap            = 40
+night_enabled        = true
 
 [default]
 force_sw_volume = false
-cap_percent = 80
+cap_percent     = 80
 
-[device."USB Audio Device {GUID}"]
-cap_percent = 60
+# Per-device overrides — key is the device friendly name (as shown in Windows Sound settings)
+[device."Speakers (USB Audio Device)"]
+force_sw_volume = true
+cap_percent     = 60
 ```
 
 | Key | Default | Description |
 | --- | ------- | ----------- |
 | `general.autostart` | `false` | Launch at Windows startup |
+| `general.cap_presets` | `[100, 80, 60, 40]` | Volume cap presets shown in tray submenu (10–100, sorted descending) |
+| `general.scroll_step_percent` | `2` | Volume change per scroll notch in % (1–20) |
+| `general.startup_volume` | _(absent)_ | Volume to apply on each launch in % (0–100); omit to leave unchanged |
+| `general.pin_device` | _(absent)_ | Friendly name of device to target; omit to use Windows default |
+| `general.night_start` | _(absent)_ | Night mode start time (HH:MM); both `night_start` and `night_end` required |
+| `general.night_end` | _(absent)_ | Night mode end time (HH:MM); wraps midnight (e.g. 22:00 → 07:00) |
+| `general.night_cap` | `40` | Volume cap applied during night window (10–100) |
+| `general.night_enabled` | `true` | Enable/disable the night schedule; toggled by tray "Night mode" item |
 | `default.force_sw_volume` | `false` | Force software volume mode |
 | `default.cap_percent` | `100` | Volume ceiling in % (10–100) |
-| `device."<id>".*` | — | Per-device overrides (same keys as `[default]`) |
+| `device."<name>".*` | — | Per-device overrides (same keys as `[default]`); key is the device friendly name |
 
-Device IDs match the Windows audio endpoint ID string shown in the device properties. Per-device settings take precedence over `[default]` when the matching device is active.
+Per-device settings take precedence over `[default]` when the matching device is active (or pinned via `pin_device`). The device friendly name is the string shown in Windows Sound settings (e.g. "Speakers (USB Audio Device)").
 
 ## 🛠️ Building
 
