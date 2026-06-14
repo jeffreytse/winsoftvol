@@ -17,12 +17,18 @@ fn default_cap_presets() -> Vec<u32> {
     vec![100, 80, 60, 40]
 }
 
+fn default_scroll_step() -> u32 {
+    2
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
     #[serde(default)]
     pub autostart: bool,
     #[serde(default = "default_cap_presets")]
     pub cap_presets: Vec<u32>,
+    #[serde(default = "default_scroll_step")]
+    pub scroll_step_percent: u32,
 }
 
 impl Default for GeneralConfig {
@@ -30,6 +36,7 @@ impl Default for GeneralConfig {
         Self {
             autostart: false,
             cap_presets: default_cap_presets(),
+            scroll_step_percent: default_scroll_step(),
         }
     }
 }
@@ -47,6 +54,7 @@ impl GeneralConfig {
         if self.cap_presets.is_empty() {
             self.cap_presets = default_cap_presets();
         }
+        self.scroll_step_percent = self.scroll_step_percent.clamp(1, 20);
     }
 }
 
@@ -175,6 +183,7 @@ impl Config {
             general: GeneralConfig {
                 autostart,
                 cap_presets: default_cap_presets(),
+                scroll_step_percent: default_scroll_step(),
             },
             default: DeviceConfig {
                 force_sw_volume: force_sw != 0,
@@ -198,6 +207,30 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn default_scroll_step_is_two() {
+        assert_eq!(default_scroll_step(), 2);
+        assert_eq!(GeneralConfig::default().scroll_step_percent, 2);
+    }
+
+    #[test]
+    fn scroll_step_missing_from_toml_uses_default() {
+        let cfg: Config = toml::from_str("[general]\nautostart = false\n").unwrap();
+        assert_eq!(cfg.general.scroll_step_percent, 2);
+    }
+
+    #[test]
+    fn scroll_step_sanitize_clamps_to_range() {
+        let mut g = GeneralConfig::default();
+        g.scroll_step_percent = 50;
+        g.sanitize();
+        assert_eq!(g.scroll_step_percent, 20);
+
+        g.scroll_step_percent = 0;
+        g.sanitize();
+        assert_eq!(g.scroll_step_percent, 1);
+    }
 
     #[test]
     fn default_config_has_sane_values() {
@@ -232,30 +265,24 @@ mod tests {
 
     #[test]
     fn cap_presets_sanitize_clamps_and_deduplicates() {
-        let mut g = GeneralConfig {
-            autostart: false,
-            cap_presets: vec![120, 100, 50, 50, 5],
-        };
+        let mut g = GeneralConfig::default();
+        g.cap_presets = vec![120, 100, 50, 50, 5];
         g.sanitize();
         assert_eq!(g.cap_presets, vec![100, 50, 10]);
     }
 
     #[test]
     fn cap_presets_sanitize_empty_restores_default() {
-        let mut g = GeneralConfig {
-            autostart: false,
-            cap_presets: vec![],
-        };
+        let mut g = GeneralConfig::default();
+        g.cap_presets = vec![];
         g.sanitize();
         assert_eq!(g.cap_presets, default_cap_presets());
     }
 
     #[test]
     fn cap_presets_sanitize_sorts_descending() {
-        let mut g = GeneralConfig {
-            autostart: false,
-            cap_presets: vec![40, 100, 60],
-        };
+        let mut g = GeneralConfig::default();
+        g.cap_presets = vec![40, 100, 60];
         g.sanitize();
         assert_eq!(g.cap_presets, vec![100, 60, 40]);
     }

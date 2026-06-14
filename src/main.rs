@@ -74,6 +74,7 @@ fn run() -> anyhow::Result<()> {
     let initial_cfg = config::Config::load();
     let softvol_flag = Arc::new(AtomicBool::new(initial_cfg.default.force_sw_volume));
     let cap_flag = Arc::new(AtomicU32::new(initial_cfg.default.cap_percent));
+    let scroll_step = Arc::new(AtomicU32::new(initial_cfg.general.scroll_step_percent));
     let tray_state = tray::build_tray(
         initial_cfg.general.autostart,
         initial_cfg.default.force_sw_volume,
@@ -113,7 +114,8 @@ fn run() -> anyhow::Result<()> {
         let scroll = PENDING_SCROLL.swap(0, Ordering::Relaxed);
         if scroll != 0 {
             if let Some(ref b) = bridge {
-                let _ = b.adjust_volume(scroll as f32 * 0.02);
+                let step = scroll_step.load(Ordering::Relaxed) as f32 / 100.0;
+                let _ = b.adjust_volume(scroll as f32 * step);
             }
         }
 
@@ -176,6 +178,8 @@ fn run() -> anyhow::Result<()> {
                                 softvol_flag
                                     .store(new_cfg.default.force_sw_volume, Ordering::Relaxed);
                                 cap_flag.store(new_cfg.default.cap_percent, Ordering::Relaxed);
+                                scroll_step
+                                    .store(new_cfg.general.scroll_step_percent, Ordering::Relaxed);
                                 if let Some(ref b) = bridge {
                                     let _ = b.apply_cap();
                                 }
