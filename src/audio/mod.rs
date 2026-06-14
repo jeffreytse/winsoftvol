@@ -8,7 +8,7 @@ use device::get_default_device;
 pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
-use session_mgr::{scale_all_sessions_volume, set_all_sessions_mute};
+use session_mgr::{cap_all_sessions_volume, scale_all_sessions_volume, set_all_sessions_mute};
 
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, Ordering},
@@ -156,6 +156,11 @@ impl AudioBridge {
             }
         }
         Ok(())
+    }
+
+    pub fn apply_cap(&self) -> Result<()> {
+        let cap = self.cap.load(Ordering::Relaxed) as f32 / 100.0;
+        cap_all_sessions_volume(&self.session_manager, cap)
     }
 
     pub fn toggle_mute(&self) -> Result<()> {

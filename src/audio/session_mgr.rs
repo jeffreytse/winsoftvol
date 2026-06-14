@@ -56,6 +56,25 @@ fn scale_volume(cur: f32, old_volume: f32, new_volume: f32, cap: f32) -> f32 {
     }
 }
 
+/// Clamps sessions above `cap` down to `cap`. Sessions already below are untouched.
+pub fn cap_all_sessions_volume(session_manager: &IAudioSessionManager2, cap: f32) -> Result<()> {
+    let enumerator = unsafe { session_manager.GetSessionEnumerator()? };
+    let count = unsafe { enumerator.GetCount()? };
+    for i in 0..count {
+        let session = unsafe { enumerator.GetSession(i)? };
+        if let Ok(vol) = session.cast::<ISimpleAudioVolume>() {
+            unsafe {
+                if let Ok(cur) = vol.GetMasterVolume() {
+                    if cur > cap {
+                        let _ = vol.SetMasterVolume(cap, std::ptr::null());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Scales each session proportionally by (new_volume / old_volume), clamped to cap.
 /// Preserves per-app volume balance set in Windows Volume Mixer.
 pub fn scale_all_sessions_volume(
@@ -140,6 +159,31 @@ mod tests {
         // cur == old → scaled = old * new / old = new
         let result = scale_volume(old, old, 0.5, 1.0);
         assert!(approx(result, 0.5));
+    }
+
+    // cap_all_sessions_volume logic tests (pure math, no COM)
+    fn cap_session(cur: f32, cap: f32) -> f32 {
+        if cur > cap { cap } else { cur }
+    }
+
+    #[test]
+    fn cap_not_applied_when_below_cap() {
+        assert!((cap_session(0.3, 0.4) - 0.3).abs() < 1e-5);
+    }
+
+    #[test]
+    fn cap_applied_when_above_cap() {
+        assert!((cap_session(0.8, 0.4) - 0.4).abs() < 1e-5);
+    }
+
+    #[test]
+    fn cap_applied_when_at_full_volume() {
+        assert!((cap_session(1.0, 0.4) - 0.4).abs() < 1e-5);
+    }
+
+    #[test]
+    fn cap_unchanged_when_equal_to_cap() {
+        assert!((cap_session(0.4, 0.4) - 0.4).abs() < 1e-5);
     }
 
     // absolute_session_volume tests

@@ -168,6 +168,9 @@ fn run() -> anyhow::Result<()> {
                                 softvol_flag
                                     .store(new_cfg.default.force_sw_volume, Ordering::Relaxed);
                                 cap_flag.store(new_cfg.default.cap_percent, Ordering::Relaxed);
+                                if let Some(ref b) = bridge {
+                                    let _ = b.apply_cap();
+                                }
                                 tray_state.set_softvol(new_cfg.default.force_sw_volume);
                                 tray_state.set_volcap(new_cfg.default.cap_percent);
                                 let old_autostart = cfg_state.read().unwrap().general.autostart;
@@ -250,6 +253,9 @@ fn run() -> anyhow::Result<()> {
                 for (id, pct) in &tray_state.volcap_ids {
                     if event.id() == id {
                         cap_flag.store(*pct, Ordering::Relaxed);
+                        if let Some(ref b) = bridge {
+                            let _ = b.apply_cap();
+                        }
                         {
                             let mut cfg = cfg_state.write().unwrap();
                             cfg.default.cap_percent = *pct;
