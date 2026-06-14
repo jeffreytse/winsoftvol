@@ -8,9 +8,11 @@ pub struct Tray {
     pub about_id: MenuId,
     pub autostart_id: MenuId,
     pub softvol_id: MenuId,
+    pub night_id: MenuId,
     pub volcap_ids: Vec<(MenuId, u32)>,
     autostart_item: CheckMenuItem,
     softvol_item: CheckMenuItem,
+    night_item: CheckMenuItem,
     volcap_items: Vec<CheckMenuItem>,
     pub quit_id: MenuId,
 }
@@ -18,6 +20,7 @@ pub struct Tray {
 pub fn build_tray(
     autostart_enabled: bool,
     softvol_enabled: bool,
+    night_enabled: bool,
     volcap_percent: u32,
     cap_presets: &[u32],
 ) -> anyhow::Result<Tray> {
@@ -25,11 +28,13 @@ pub fn build_tray(
     let autostart_item =
         CheckMenuItem::new("Start on Windows startup", true, autostart_enabled, None);
     let softvol_item = CheckMenuItem::new("Force software volume", true, softvol_enabled, None);
+    let night_item = CheckMenuItem::new("Night mode", true, night_enabled, None);
     let quit_item = MenuItem::new("Quit WinSoftVol", true, None);
 
     let about_id = about_item.id().clone();
     let autostart_id = autostart_item.id().clone();
     let softvol_id = softvol_item.id().clone();
+    let night_id = night_item.id().clone();
     let quit_id = quit_item.id().clone();
 
     // Max volume submenu — built from config presets
@@ -50,6 +55,7 @@ pub fn build_tray(
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&autostart_item)?;
     menu.append(&softvol_item)?;
+    menu.append(&night_item)?;
     menu.append(&volcap_submenu)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit_item)?;
@@ -70,9 +76,11 @@ pub fn build_tray(
         about_id,
         autostart_id,
         softvol_id,
+        night_id,
         volcap_ids,
         autostart_item,
         softvol_item,
+        night_item,
         volcap_items,
         quit_id,
     })
@@ -132,6 +140,11 @@ impl Tray {
     #[allow(dead_code)]
     pub fn set_softvol(&self, enabled: bool) {
         self.softvol_item.set_checked(enabled);
+    }
+
+    #[allow(dead_code)]
+    pub fn set_night(&self, enabled: bool) {
+        self.night_item.set_checked(enabled);
     }
 
     #[allow(dead_code)]

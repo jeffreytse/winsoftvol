@@ -56,6 +56,13 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[cfg(windows)]
+fn local_time_minutes() -> u32 {
+    use windows::Win32::System::SystemInformation::GetLocalTime;
+    let st = unsafe { GetLocalTime() };
+    st.wHour as u32 * 60 + st.wMinute as u32
+}
+
+#[cfg(windows)]
 fn run() -> anyhow::Result<()> {
     use std::sync::{atomic::AtomicU32, Arc, Mutex, RwLock};
     use windows::Win32::{
@@ -78,6 +85,7 @@ fn run() -> anyhow::Result<()> {
     let tray_state = tray::build_tray(
         initial_cfg.general.autostart,
         initial_cfg.default.force_sw_volume,
+        initial_cfg.general.night_enabled,
         initial_cfg.default.cap_percent,
         &initial_cfg.general.cap_presets,
     )?;
@@ -99,6 +107,7 @@ fn run() -> anyhow::Result<()> {
 
     let mut last_display: Option<(u32, bool, u32)> = None;
     let mut exclusive_mode_active = false;
+    let mut in_night_mode = false;
     let mut update_notified = false;
     let mut msg = MSG::default();
     loop {
@@ -152,6 +161,38 @@ fn run() -> anyhow::Result<()> {
                 }
             }
 
+            // Night mode: auto-lower cap on schedule
+            {
+                let cfg = cfg_state.read().unwrap();
+                if let Some((start_min, end_min)) = cfg.general.night_window_minutes() {
+                    let now_min = local_time_minutes();
+                    let night = if start_min <= end_min {
+                        now_min >= start_min && now_min < end_min
+                    } else {
+                        now_min >= start_min || now_min < end_min
+                    };
+                    if night && !in_night_mode {
+                        in_night_mode = true;
+                        cap_flag.store(cfg.general.night_cap, Ordering::Relaxed);
+                        if let Some(ref b) = bridge {
+                            let _ = b.apply_cap();
+                        }
+                    } else if !night && in_night_mode {
+                        in_night_mode = false;
+                        cap_flag.store(cfg.default.cap_percent, Ordering::Relaxed);
+                        if let Some(ref b) = bridge {
+                            let _ = b.apply_cap();
+                        }
+                    }
+                } else if in_night_mode {
+                    in_night_mode = false;
+                    cap_flag.store(cfg.default.cap_percent, Ordering::Relaxed);
+                    if let Some(ref b) = bridge {
+                        let _ = b.apply_cap();
+                    }
+                }
+            }
+
             // Notify once when a new version is detected
             if !update_notified {
                 if let Some(tag) = update_state.lock().unwrap().clone() {
@@ -185,6 +226,8 @@ fn run() -> anyhow::Result<()> {
                                 }
                                 tray_state.set_softvol(new_cfg.default.force_sw_volume);
                                 tray_state.set_volcap(new_cfg.default.cap_percent);
+                                tray_state.set_night(new_cfg.general.night_enabled);
+                                in_night_mode = false;
                                 let old_autostart = cfg_state.read().unwrap().general.autostart;
                                 if new_cfg.general.autostart != old_autostart {
                                     let _ = autostart::set(new_cfg.general.autostart);
@@ -260,6 +303,22 @@ fn run() -> anyhow::Result<()> {
                     let mut cfg = cfg_state.write().unwrap();
                     cfg.default.force_sw_volume = new_state;
                     let _ = cfg.save();
+                }
+            } else if event.id() == &tray_state.night_id {
+                let new_state = {
+                    let mut cfg = cfg_state.write().unwrap();
+                    cfg.general.night_enabled = !cfg.general.night_enabled;
+                    let _ = cfg.save();
+                    cfg.general.night_enabled
+                };
+                tray_state.set_night(new_state);
+                if !new_state && in_night_mode {
+                    in_night_mode = false;
+                    let cfg = cfg_state.read().unwrap();
+                    cap_flag.store(cfg.default.cap_percent, Ordering::Relaxed);
+                    if let Some(ref b) = bridge {
+                        let _ = b.apply_cap();
+                    }
                 }
             } else {
                 for (id, pct) in &tray_state.volcap_ids {

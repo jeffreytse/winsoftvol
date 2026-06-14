@@ -21,6 +21,24 @@ fn default_scroll_step() -> u32 {
     2
 }
 
+fn default_night_cap() -> u32 {
+    40
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn parse_hm(s: &str) -> Option<u32> {
+    let (h, m) = s.split_once(':')?;
+    let h: u32 = h.trim().parse().ok()?;
+    let m: u32 = m.trim().parse().ok()?;
+    if h > 23 || m > 59 {
+        return None;
+    }
+    Some(h * 60 + m)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneralConfig {
     #[serde(default)]
@@ -29,6 +47,14 @@ pub struct GeneralConfig {
     pub cap_presets: Vec<u32>,
     #[serde(default = "default_scroll_step")]
     pub scroll_step_percent: u32,
+    #[serde(default)]
+    pub night_start: Option<String>,
+    #[serde(default)]
+    pub night_end: Option<String>,
+    #[serde(default = "default_night_cap")]
+    pub night_cap: u32,
+    #[serde(default = "default_true")]
+    pub night_enabled: bool,
 }
 
 impl Default for GeneralConfig {
@@ -37,6 +63,10 @@ impl Default for GeneralConfig {
             autostart: false,
             cap_presets: default_cap_presets(),
             scroll_step_percent: default_scroll_step(),
+            night_start: None,
+            night_end: None,
+            night_cap: default_night_cap(),
+            night_enabled: true,
         }
     }
 }
@@ -55,6 +85,16 @@ impl GeneralConfig {
             self.cap_presets = default_cap_presets();
         }
         self.scroll_step_percent = self.scroll_step_percent.clamp(1, 20);
+        self.night_cap = self.night_cap.clamp(10, 100);
+    }
+
+    pub fn night_window_minutes(&self) -> Option<(u32, u32)> {
+        if !self.night_enabled {
+            return None;
+        }
+        let start = parse_hm(self.night_start.as_deref()?)?;
+        let end = parse_hm(self.night_end.as_deref()?)?;
+        Some((start, end))
     }
 }
 
@@ -184,6 +224,10 @@ impl Config {
                 autostart,
                 cap_presets: default_cap_presets(),
                 scroll_step_percent: default_scroll_step(),
+                night_start: None,
+                night_end: None,
+                night_cap: default_night_cap(),
+                night_enabled: true,
             },
             default: DeviceConfig {
                 force_sw_volume: force_sw != 0,
@@ -384,6 +428,73 @@ cap_percent = 60
         let mut cfg: Config = toml::from_str(toml).unwrap();
         cfg.sanitize_devices();
         assert_eq!(cfg.default.cap_percent, 100);
+    }
+
+    #[test]
+    fn night_cap_default_is_40() {
+        assert_eq!(default_night_cap(), 40);
+        assert_eq!(GeneralConfig::default().night_cap, 40);
+    }
+
+    #[test]
+    fn night_fields_missing_from_toml_use_defaults() {
+        let cfg: Config = toml::from_str("[general]\nautostart = false\n").unwrap();
+        assert!(cfg.general.night_start.is_none());
+        assert!(cfg.general.night_end.is_none());
+        assert_eq!(cfg.general.night_cap, 40);
+        assert!(cfg.general.night_enabled);
+    }
+
+    #[test]
+    fn parse_hm_valid() {
+        assert_eq!(parse_hm("22:00"), Some(22 * 60));
+        assert_eq!(parse_hm("07:30"), Some(7 * 60 + 30));
+        assert_eq!(parse_hm("00:00"), Some(0));
+        assert_eq!(parse_hm("23:59"), Some(23 * 60 + 59));
+    }
+
+    #[test]
+    fn parse_hm_invalid() {
+        assert_eq!(parse_hm("24:00"), None);
+        assert_eq!(parse_hm("22:60"), None);
+        assert_eq!(parse_hm("not-a-time"), None);
+        assert_eq!(parse_hm(""), None);
+        assert_eq!(parse_hm("22"), None);
+    }
+
+    #[test]
+    fn night_window_minutes_none_when_times_missing() {
+        let cfg = GeneralConfig::default();
+        assert!(cfg.night_window_minutes().is_none());
+    }
+
+    #[test]
+    fn night_window_minutes_none_when_disabled() {
+        let mut cfg = GeneralConfig::default();
+        cfg.night_start = Some("22:00".to_string());
+        cfg.night_end = Some("07:00".to_string());
+        cfg.night_enabled = false;
+        assert!(cfg.night_window_minutes().is_none());
+    }
+
+    #[test]
+    fn night_window_minutes_returns_parsed_values() {
+        let mut cfg = GeneralConfig::default();
+        cfg.night_start = Some("22:00".to_string());
+        cfg.night_end = Some("07:00".to_string());
+        assert_eq!(cfg.night_window_minutes(), Some((22 * 60, 7 * 60)));
+    }
+
+    #[test]
+    fn night_cap_sanitize_clamps() {
+        let mut g = GeneralConfig::default();
+        g.night_cap = 5;
+        g.sanitize();
+        assert_eq!(g.night_cap, 10);
+
+        g.night_cap = 150;
+        g.sanitize();
+        assert_eq!(g.night_cap, 100);
     }
 
     #[test]
