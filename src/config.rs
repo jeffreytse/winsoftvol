@@ -57,6 +57,8 @@ pub struct GeneralConfig {
     pub night_enabled: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub startup_volume: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pin_device: Option<String>,
 }
 
 impl Default for GeneralConfig {
@@ -70,6 +72,7 @@ impl Default for GeneralConfig {
             night_cap: default_night_cap(),
             night_enabled: true,
             startup_volume: None,
+            pin_device: None,
         }
     }
 }
@@ -235,6 +238,7 @@ impl Config {
                 night_cap: default_night_cap(),
                 night_enabled: true,
                 startup_volume: None,
+                pin_device: None,
             },
             default: DeviceConfig {
                 force_sw_volume: force_sw != 0,

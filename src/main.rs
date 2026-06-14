@@ -56,6 +56,15 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[cfg(windows)]
+fn active_device_config<'a>(cfg: &'a config::Config) -> &'a config::DeviceConfig {
+    cfg.general
+        .pin_device
+        .as_deref()
+        .and_then(|id| cfg.device.get(id))
+        .unwrap_or(&cfg.default)
+}
+
+#[cfg(windows)]
 fn local_time_minutes() -> u32 {
     use windows::Win32::System::SystemInformation::GetLocalTime;
     let st = unsafe { GetLocalTime() };
@@ -79,14 +88,15 @@ fn run() -> anyhow::Result<()> {
     updater::spawn_update_checker(Arc::clone(&update_state));
 
     let initial_cfg = config::Config::load();
-    let softvol_flag = Arc::new(AtomicBool::new(initial_cfg.default.force_sw_volume));
-    let cap_flag = Arc::new(AtomicU32::new(initial_cfg.default.cap_percent));
+    let init_dev_cfg = active_device_config(&initial_cfg);
+    let softvol_flag = Arc::new(AtomicBool::new(init_dev_cfg.force_sw_volume));
+    let cap_flag = Arc::new(AtomicU32::new(init_dev_cfg.cap_percent));
     let scroll_step = Arc::new(AtomicU32::new(initial_cfg.general.scroll_step_percent));
     let tray_state = tray::build_tray(
         initial_cfg.general.autostart,
-        initial_cfg.default.force_sw_volume,
+        init_dev_cfg.force_sw_volume,
         initial_cfg.general.night_enabled,
-        initial_cfg.default.cap_percent,
+        init_dev_cfg.cap_percent,
         &initial_cfg.general.cap_presets,
         initial_cfg.general.startup_volume,
     )?;
@@ -99,8 +109,16 @@ fn run() -> anyhow::Result<()> {
             .and_then(|m| m.modified().ok());
 
     let watcher = audio::DeviceWatcher::new()?;
-    let mut bridge: Option<audio::AudioBridge> =
-        audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+    let mut bridge: Option<audio::AudioBridge> = {
+        let pin = cfg_state.read().unwrap().general.pin_device.clone();
+        let b = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref()).ok();
+        if b.is_none() {
+            if let Some(ref name) = pin {
+                notification::show_device_not_found(name);
+            }
+        }
+        b
+    };
 
     if let Some(ref b) = bridge {
         if let Some(vol) = cfg_state.read().unwrap().general.startup_volume {
@@ -223,16 +241,17 @@ fn run() -> anyhow::Result<()> {
                         last_config_mtime = Some(mtime);
                         match config::Config::try_load() {
                             Ok(new_cfg) => {
+                                let dev_cfg = active_device_config(&new_cfg);
                                 softvol_flag
-                                    .store(new_cfg.default.force_sw_volume, Ordering::Relaxed);
-                                cap_flag.store(new_cfg.default.cap_percent, Ordering::Relaxed);
+                                    .store(dev_cfg.force_sw_volume, Ordering::Relaxed);
+                                cap_flag.store(dev_cfg.cap_percent, Ordering::Relaxed);
                                 scroll_step
                                     .store(new_cfg.general.scroll_step_percent, Ordering::Relaxed);
                                 if let Some(ref b) = bridge {
                                     let _ = b.apply_cap();
                                 }
-                                tray_state.set_softvol(new_cfg.default.force_sw_volume);
-                                tray_state.set_volcap(new_cfg.default.cap_percent);
+                                tray_state.set_softvol(dev_cfg.force_sw_volume);
+                                tray_state.set_volcap(dev_cfg.cap_percent);
                                 tray_state.set_night(new_cfg.general.night_enabled);
                                 tray_state.set_startup_vol(new_cfg.general.startup_volume);
                                 in_night_mode = false;
@@ -254,9 +273,12 @@ fn run() -> anyhow::Result<()> {
 
         if watcher.check() {
             drop(bridge.take());
-            bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone()).ok();
+            let pin = cfg_state.read().unwrap().general.pin_device.clone();
+            bridge = audio::AudioBridge::new(softvol_flag.clone(), cap_flag.clone(), pin.as_deref()).ok();
             if bridge.is_some() {
                 notification::show_device_reconnected();
+            } else if let Some(ref name) = pin {
+                notification::show_device_not_found(name);
             }
         }
 

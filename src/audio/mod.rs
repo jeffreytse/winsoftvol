@@ -4,7 +4,7 @@ mod endpoint_cb;
 mod session_cb;
 pub mod session_mgr;
 
-use device::get_default_device;
+use device::{get_default_device, get_device_by_name};
 pub use device::DeviceWatcher;
 use endpoint_cb::EndpointVolumeCallback;
 use session_cb::SessionNotificationHandler;
@@ -50,13 +50,17 @@ fn apply_delta(old: f32, delta: f32) -> f32 {
 }
 
 impl AudioBridge {
-    pub fn new(softvol: Arc<AtomicBool>, cap: Arc<AtomicU32>) -> Result<Self> {
+    pub fn new(softvol: Arc<AtomicBool>, cap: Arc<AtomicU32>, pin_device: Option<&str>) -> Result<Self> {
         let state = Arc::new(Mutex::new(VolumeState {
             volume: 1.0,
             muted: false,
         }));
 
-        let device = get_default_device()?;
+        let device = match pin_device {
+            Some(name) => get_device_by_name(name)
+                .ok_or_else(|| windows::core::Error::new(windows::core::HRESULT(-1i32), "".into()))?,
+            None => get_default_device()?,
+        };
         let meter: IAudioMeterInformation = unsafe { device.Activate(CLSCTX_ALL, None)? };
 
         // Register session notification BEFORE enumerating to avoid missing sessions

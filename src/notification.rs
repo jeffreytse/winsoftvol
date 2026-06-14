@@ -59,6 +59,11 @@ fn toast_xml(xml_str: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn show_device_not_found(name: &str) {
+    let body = format!("Pinned device \"{name}\" not found — using default audio device.");
+    let _ = toast("WinSoftVol — Device Not Found", &body);
+}
+
 pub fn show_update_available(tag: &str, url: &str) {
     let xml = format!(
         "<toast launch=\"{url}\" activationType=\"protocol\" duration=\"short\"><visual><binding template=\"ToastGeneric\"><text>WinSoftVol Update Available</text><text>{tag} is ready \u{2014} click to open release page</text></binding></visual></toast>"
