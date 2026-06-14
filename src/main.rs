@@ -95,7 +95,7 @@ fn run() -> anyhow::Result<()> {
 
     unsafe { SetTimer(HWND(0), 1, 1000, None) };
 
-    let mut last_display: Option<(u32, bool)> = None;
+    let mut last_display: Option<(u32, bool, u32)> = None;
     let mut exclusive_mode_active = false;
     let mut update_notified = false;
     let mut msg = MSG::default();
@@ -116,16 +116,23 @@ fn run() -> anyhow::Result<()> {
             }
         }
 
-        // Update tray icon when volume or mute state changes
+        // Update tray icon and tooltip when volume, mute, or cap changes
         if let Some(ref b) = bridge {
             let (vol, muted) = b.current_volume();
             let pct = (vol * 100.0).round() as u32;
-            let display = (pct, muted);
+            let cap = cap_flag.load(Ordering::Relaxed);
+            let display = (pct, muted, cap);
             if Some(display) != last_display {
                 last_display = Some(display);
                 if let Ok(icon) = tray::render_volume_icon(vol, muted) {
                     let _ = tray_state.update_icon(icon);
                 }
+                let tooltip = if muted {
+                    format!("Muted | cap: {cap}%")
+                } else {
+                    format!("{pct}% | cap: {cap}%")
+                };
+                tray_state.set_tooltip(&tooltip);
             }
         }
 

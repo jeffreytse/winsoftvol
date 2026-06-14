@@ -118,6 +118,10 @@ impl Tray {
         Ok(())
     }
 
+    pub fn set_tooltip(&self, text: &str) {
+        let _ = self._icon.set_tooltip(Some(text));
+    }
+
     #[allow(dead_code)]
     pub fn set_volcap(&self, pct: u32) {
         for (item, &(item_pct, _)) in self.volcap_items.iter().zip(VOLCAP_PRESETS.iter()) {
