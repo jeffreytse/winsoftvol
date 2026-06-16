@@ -19,9 +19,37 @@ use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 #[cfg(windows)]
 static CURSOR_OVER_TRAY: AtomicBool = AtomicBool::new(false);
 
+// Bounding rect of the system tray notification area; stored on Enter, checked in hook proc.
+#[cfg(windows)]
+static TRAY_RECT_LEFT: AtomicI32 = AtomicI32::new(0);
+#[cfg(windows)]
+static TRAY_RECT_TOP: AtomicI32 = AtomicI32::new(0);
+#[cfg(windows)]
+static TRAY_RECT_RIGHT: AtomicI32 = AtomicI32::new(0);
+#[cfg(windows)]
+static TRAY_RECT_BOTTOM: AtomicI32 = AtomicI32::new(0);
+
 // Accumulates scroll notches from the mouse hook; drained each message loop iteration.
 #[cfg(windows)]
 static PENDING_SCROLL: AtomicI32 = AtomicI32::new(0);
+
+#[cfg(windows)]
+unsafe fn tray_notification_rect() -> Option<windows::Win32::Foundation::RECT> {
+    use windows::core::w;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowExW, FindWindowW, GetWindowRect};
+    let tray = FindWindowW(w!("Shell_TrayWnd"), None);
+    if tray == HWND(0) {
+        return None;
+    }
+    let notify = FindWindowExW(tray, HWND(0), w!("TrayNotifyWnd"), None);
+    if notify == HWND(0) {
+        return None;
+    }
+    let mut rect = windows::Win32::Foundation::RECT::default();
+    GetWindowRect(notify, &mut rect).ok()?;
+    Some(rect)
+}
 
 #[cfg(windows)]
 unsafe extern "system" fn mouse_hook_proc(
@@ -34,11 +62,19 @@ unsafe extern "system" fn mouse_hook_proc(
     };
     if code >= 0 && wparam.0 as u32 == WM_MOUSEWHEEL && CURSOR_OVER_TRAY.load(Ordering::Relaxed) {
         let data = &*(lparam.0 as *const MSLLHOOKSTRUCT);
-        let delta = (data.mouseData >> 16) as i16;
-        if delta > 0 {
-            PENDING_SCROLL.fetch_add(1, Ordering::Relaxed);
-        } else {
-            PENDING_SCROLL.fetch_sub(1, Ordering::Relaxed);
+        let x = data.pt.x;
+        let y = data.pt.y;
+        let l = TRAY_RECT_LEFT.load(Ordering::Relaxed);
+        let t = TRAY_RECT_TOP.load(Ordering::Relaxed);
+        let r = TRAY_RECT_RIGHT.load(Ordering::Relaxed);
+        let b = TRAY_RECT_BOTTOM.load(Ordering::Relaxed);
+        if l < r && t < b && x >= l && x < r && y >= t && y < b {
+            let delta = (data.mouseData >> 16) as i16;
+            if delta > 0 {
+                PENDING_SCROLL.fetch_add(1, Ordering::Relaxed);
+            } else {
+                PENDING_SCROLL.fetch_sub(1, Ordering::Relaxed);
+            }
         }
     }
     CallNextHookEx(HHOOK::default(), code, wparam, lparam)
@@ -297,6 +333,12 @@ fn run() -> anyhow::Result<()> {
                 }
                 tray_icon::TrayIconEvent::Enter { .. } => {
                     CURSOR_OVER_TRAY.store(true, Ordering::Relaxed);
+                    if let Some(r) = unsafe { tray_notification_rect() } {
+                        TRAY_RECT_LEFT.store(r.left, Ordering::Relaxed);
+                        TRAY_RECT_TOP.store(r.top, Ordering::Relaxed);
+                        TRAY_RECT_RIGHT.store(r.right, Ordering::Relaxed);
+                        TRAY_RECT_BOTTOM.store(r.bottom, Ordering::Relaxed);
+                    }
                 }
                 tray_icon::TrayIconEvent::Leave { .. } => {
                     CURSOR_OVER_TRAY.store(false, Ordering::Relaxed);
