@@ -1,3 +1,19 @@
+# Release v0.3.2
+
+This release tightens the scroll-wheel guard introduced in v0.3.1 and fixes a separate bug where volume keys had no effect beyond the first press when Force Software Volume mode was active.
+
+### 🐛 Bug Fixes
+
+* **Scroll guard now targets only the WinSoftVol icon:** Replaced the `TrayNotifyWnd`-wide bounds check (which covered the entire notification area including clock and other icons) with a 40 px radius around the exact icon center. The global mouse hook now also self-resets the hover flag on any `WM_MOUSEMOVE` event that leaves the icon area, eliminating reliance on the unreliable `WM_MOUSELEAVE` delivery entirely (https://github.com/jeffreytse/winsoftvol/commit/d38e059)
+
+* **Volume keys now work correctly in Force Software Volume mode:** In softvol mode the endpoint is reset to 1.0 after every `OnNotify` callback, but `state.volume` was overwritten with the OS-requested level (e.g. 0.9). The next key press stepped from 1.0 → 0.9 again, making old == new and the session scale ratio 1.0 — per-app volumes never changed past the first press. Fixed by computing the scale from `old_volume = 1.0` and accumulating `state.volume` multiplicatively so scroll-set levels compound correctly with subsequent key presses (https://github.com/jeffreytse/winsoftvol/commit/15076c9)
+
+---
+
+**Full Changelog:** https://github.com/jeffreytse/winsoftvol/compare/v0.3.1...v0.3.2
+
+---
+
 # Release v0.3.1
 
 This release fixes a bug where scroll-wheel volume control would occasionally trigger while scrolling in other applications.
