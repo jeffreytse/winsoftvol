@@ -46,16 +46,25 @@ impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
 
         let new_volume = data.fMasterVolume;
         let muted = data.bMuted.as_bool();
+        let softvol = self.softvol.load(Ordering::Relaxed);
 
-        // Read old volume before updating state — needed for proportional scaling
-        let old_volume = {
-            let s = self.state.lock().unwrap();
-            s.volume
+        // In softvol mode the endpoint is always reset to 1.0 after each callback,
+        // so the effective old level the OS is stepping from is always 1.0 — not
+        // whatever state.volume accumulated from prior scroll adjustments.
+        let old_volume = if softvol {
+            1.0_f32
+        } else {
+            self.state.lock().unwrap().volume
         };
 
         {
             let mut s = self.state.lock().unwrap();
-            s.volume = new_volume;
+            s.volume = if softvol {
+                // Accumulate multiplicatively: each key step is relative to 1.0
+                (s.volume * new_volume).clamp(0.0, 1.0)
+            } else {
+                new_volume
+            };
             s.muted = muted;
         }
 
@@ -64,7 +73,7 @@ impl IAudioEndpointVolumeCallback_Impl for EndpointVolumeCallback {
 
         // Force software volume: keep endpoint at 1.0 so hardware doesn't also
         // attenuate. All attenuation is handled by the session mixer above.
-        if self.softvol.load(Ordering::Relaxed) {
+        if softvol {
             unsafe {
                 let _ = self
                     .endpoint_volume
